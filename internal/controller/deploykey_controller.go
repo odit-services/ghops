@@ -47,29 +47,51 @@ type DeployKeyReconciler struct {
 	sshservice services.SSHService
 }
 
-const GitHubKnownHosts = `
+const (
+	GitHubKnownHosts = `
 github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl
 github.com ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCj7ndNxQowgcQnjshcLrqPEiiphnt+VTTvDP6mHBL9j1aNUkY4Ue1gvwnGLVlOhGeYrnZaMgRK6+PKCUXaDbC7qtbW8gIkhL7aGCsOr/C56SJMy/BCZfxd1nWzAOxSDPgVsmerOBYfNqltV9/hWCqBywINIR+5dIg6JTJ72pcEpEjcYgXkE2YEFXV1JHnsKgbLWNlhScqb2UmyRkQyytRLtL+38TGxkxCflmO+5Z8CSSNY7GidjMIZ7Q4zMjA2n1nGrlTDkzwDCsw+wqFPGQA179cnfGWOWRVruj16z6XyvxvjJwbz0wQZ75XK5tKSb7FNyeIEs4TT4jk+S4dhPeAUC5y+bDYirYgM4GC7uEnztnZyaVWQ7B381AK4Qdrwt51ZqExKbQpTUNn+EjqoTwvqNj4kqx5QUCI0ThS/YkOxJCXmPUWZbhjpCg56i+2aB6CmK2JGhn57K5mj0MNdBXA4/WnwH6XoPWJzK5Nyu2zB3nAZp+S5hpQs+p1vN1/wsjk=
 github.com ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBEmKSENjQEezOmxkZMy7opKgwFB9nkt5YRrYMjNuG5N87uRgg6CLrbo5wAdT/y6v0mKV0U2w0WZ2YB/++Tpockg=
 `
+	MaxRetries = 5
+)
 
 func (r *DeployKeyReconciler) HandleError(deploykey *authv1alpha1.DeployKey, err error) (ctrl.Result, error) {
 	r.logger.Errorw("Failed to reconcile deploykey", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", err)
-	deploykey.Status = authv1alpha1.DeployKeyStatus{
-		CrStatus: authv1alpha1.CrStatus{
-			State:             authv1alpha1.StateFailed,
-			LastAction:        deploykey.Status.LastAction,
-			LastMessage:       fmt.Sprintf("Failed to reconcile deploykey: %v", err),
-			LastReconcileTime: time.Now().Format(time.RFC3339),
-			CurrentRetries:    deploykey.Status.CurrentRetries + 1,
-		},
-		SecretRef: deploykey.Status.SecretRef,
-		Created:   deploykey.Status.Created,
+	if deploykey.Status.CurrentRetries >= MaxRetries {
+		deploykey.Status = authv1alpha1.DeployKeyStatus{
+			CrStatus: authv1alpha1.CrStatus{
+				State:             authv1alpha1.StateFailed,
+				LastAction:        deploykey.Status.LastAction,
+				LastMessage:       fmt.Sprintf("Failed to reconcile deploykey after %d retries: %v", MaxRetries, err),
+				LastReconcileTime: time.Now().Format(time.RFC3339),
+				CurrentRetries:    0,
+			},
+			SecretRef: deploykey.Status.SecretRef,
+			Created:   deploykey.Status.Created,
+		}
+	} else {
+		deploykey.Status = authv1alpha1.DeployKeyStatus{
+			CrStatus: authv1alpha1.CrStatus{
+				State:             authv1alpha1.StatePending,
+				LastAction:        deploykey.Status.LastAction,
+				LastMessage:       fmt.Sprintf("Failed to reconcile deploykey: %v", err),
+				LastReconcileTime: time.Now().Format(time.RFC3339),
+				CurrentRetries:    deploykey.Status.CurrentRetries + 1,
+			},
+			SecretRef: deploykey.Status.SecretRef,
+			Created:   deploykey.Status.Created,
+		}
 	}
 	updateErr := r.Status().Update(context.Background(), deploykey)
 	if updateErr != nil {
 		r.logger.Errorw("Failed to update deploykey status", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", updateErr)
 		return ctrl.Result{RequeueAfter: 1 * time.Minute}, err
+	}
+
+	if deploykey.Status.CurrentRetries >= MaxRetries {
+		r.logger.Errorw("Max retries reached for deploykey", "name", deploykey.Name, "namespace", deploykey.Namespace)
+		return ctrl.Result{}, fmt.Errorf("max retries reached for deploykey %s/%s: %v", deploykey.Namespace, deploykey.Name, err)
 	}
 	r.logger.Infow("Requeue deploykey", "name", deploykey.Name, "namespace", deploykey.Namespace)
 	return ctrl.Result{RequeueAfter: 1 * time.Minute}, err
