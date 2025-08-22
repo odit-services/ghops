@@ -19,6 +19,20 @@ A kubernetes operator to manage stuff on GitHub.
 - kubectl version v1.11.3+.
 - Access to a Kubernetes v1.11.3+ cluster.
 
+### Create the secret
+
+> This secret is used to authenticate with GitHub.
+
+1. Create a GitHub fine grained access token with the following permissions (to all your repositories or to all repositories in the organization):
+   - Repository read metadata
+   - Repository read and write administration
+
+2. Create the secret in the `ghops-system` namespace:
+
+   ```sh
+   kubectl create secret generic -n ghops-system ghops --from-literal=GITHUB_TOKEN=<your-github-token>
+   ```
+
 ### Deploy the full operator
 
 > This includes the CRDs, RBAC, and the controller itself.
