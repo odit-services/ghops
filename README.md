@@ -2,7 +2,8 @@
 
 > We are not related to GitHub in any way other than using their platform. All rights to the name "GitHub" are owned by GitHub, Inc.
 
-![GitHub Tag](https://img.shields.io/github/v/tag/odit-services/ghops?style=for-the-badge&logo=git) ![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/odit-services/ghops?style=for-the-badge&logo=go)
+![GitHub Tag](https://img.shields.io/github/v/tag/odit-services/ghops?style=for-the-badge&logo=git) ![GitHub Release Date](https://img.shields.io/github/release-date/odit-services/ghops?style=for-the-badge&label=Latest%20release) ![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/odit-services/ghops?style=for-the-badge&logo=go) ![GitHub License](https://img.shields.io/github/license/odit-services/ghops?style=for-the-badge) ![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/odit-services/ghops/lint.yml?style=for-the-badge&label=Checks)
+
 
 Does the "GH" in "ghops" stand for GitHub? Maybe, maybe not. Maybe it stands for "ghost hops" 👻🍺 or "Git Happyness".
 
