@@ -31,9 +31,15 @@ type DeployKeySpec struct {
 	//+kubebuilder:validation:Required
 	//+kubebuilder:validation:MaxLength=255
 	//+kubebuilder:validation:MinLength=1
+	// Owner is the name of the owner (user or org) who owns the repository.
+	// Example: "odit-services"
+	Owner string `json:"owner,omitempty" yaml:"owner,omitempty"`
+
+	//+kubebuilder:validation:Required
+	//+kubebuilder:validation:MaxLength=255
+	//+kubebuilder:validation:MinLength=1
 	// Repository is the name of the repository to which this deploy key applies.
-	// It should be in the format "owner/repo".
-	// Example: "odit-services/ghops"
+	// Example: "ghops"
 	Repository string `json:"repository,omitempty" yaml:"repository,omitempty"`
 
 	// +kubebuilder:validation:Enum=read-only;read-write
@@ -54,9 +60,10 @@ const (
 
 // DeployKeyStatus defines the observed state of DeployKey.
 type DeployKeyStatus struct {
-	Created   bool   `json:"created,omitempty" yaml:"created,omitempty"`
-	SecretRef string `json:"secretRef,omitempty" yaml:"created,omitempty"`
-	CrStatus  `json:",inline" yaml:",inline"`
+	Created     bool   `json:"created,omitempty" yaml:"created,omitempty"`
+	SecretRef   string `json:"secretRef,omitempty" yaml:"created,omitempty"`
+	GitHubKeyID int64  `json:"githubKeyID,omitempty" yaml:"githubKeyID,omitempty"`
+	CrStatus    `json:",inline" yaml:",inline"`
 }
 
 // +kubebuilder:object:root=true
