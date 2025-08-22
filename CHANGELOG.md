@@ -5,11 +5,30 @@ Versions are based on [Semantic Versioning](http://semver.org/), and the changel
 
 ## Version History
 
+* [v0.3.0](#v0.3.0)
 * [v0.2.1](#v0.2.1)
 * [v0.2.0](#v0.2.0)
 * [v0.1.0](#v0.1.0)
 
 ## Changes
+
+<a name="v0.3.0"></a>
+### [v0.3.0](https://github.com/odit-services/s3ops/compare/v0.2.1...v0.3.0)
+
+> 2025-08-22
+
+#### 🏡 Chore
+
+* update changelog
+* **deploy:** update deployment manifests
+
+#### 🩹 Fixes
+
+* **deploykey:** delete secret on error during deploy key creation
+* **deploykey:** swap public and private key return values in key pair generation
+* **kustomization:** change file permissions from executable to read-only
+* **sshservice:** swap return values for RSA key pair generation
+
 
 <a name="v0.2.1"></a>
 ### [v0.2.1](https://github.com/odit-services/s3ops/compare/v0.2.0...v0.2.1)
