@@ -5,6 +5,7 @@ Versions are based on [Semantic Versioning](http://semver.org/), and the changel
 
 ## Version History
 
+* [v0.3.2](#v0.3.2)
 * [v0.3.1](#v0.3.1)
 * [v0.3.0](#v0.3.0)
 * [v0.2.1](#v0.2.1)
@@ -12,6 +13,19 @@ Versions are based on [Semantic Versioning](http://semver.org/), and the changel
 * [v0.1.0](#v0.1.0)
 
 ## Changes
+
+<a name="v0.3.2"></a>
+### [v0.3.2](https://github.com/odit-services/s3ops/compare/v0.3.1...v0.3.2)
+
+> 2025-08-22
+
+#### 🏡 Chore
+
+* change file permissions for kustomization.yaml
+* remove unnecessary release header from changelog template
+* update changelog
+* **deploy:** update deployment manifests
+
 
 <a name="v0.3.1"></a>
 ### [v0.3.1](https://github.com/odit-services/s3ops/compare/v0.3.0...v0.3.1)
