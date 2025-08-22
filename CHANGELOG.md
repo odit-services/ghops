@@ -5,36 +5,40 @@ Versions are based on [Semantic Versioning](http://semver.org/), and the changel
 
 ## Version History
 
-* [v0.1.0](#v0.1.0)
 * [v0.2.0](#v0.2.0)
+* [v0.1.0](#v0.1.0)
 
 ## Changes
 
+<a name="v0.2.0"></a>
+### [v0.2.0](https://github.com/odit-services/s3ops/compare/v0.1.0...v0.2.0)
+
+> 2025-08-22
+
+#### 🏡 Chore
+
+* update changelog
+* **deploy:** update deployment manifests
+* **kustomization:** change file permissions from 755 to 644
+
+#### 🚀 Enhancements
+
+* **deploykey:** add sample deploy key fields for metadata
+* **dockerfile:** add source label for image metadata
+* **makefile:** add multiarch docker build target
+
+
 <a name="v0.1.0"></a>
-### [v0.1.0](https://github.com/odit-services/s3ops/compare/v0.2.0...v0.1.0)
+### v0.1.0
 
 > 2025-08-22
 
 #### 🏡 Chore
 
 * Remove before deploy
-* **deploy:** update deployment manifests
-
-#### 🩹 Fixes
-
-* **deploy:** correct path in build-yaml target for deployment manifests
-* **makefile:** update GITCHGLOG variable assignment and add comment for multiarch build
-
-
-<a name="v0.2.0"></a>
-### v0.2.0
-
-> 2025-08-22
-
-#### 🏡 Chore
-
 * generated stuff
 * **ci:** Disable build for now b/c gha has some docker qemu problems
+* **deploy:** update deployment manifests
 * **deploy:** update deployment manifests
 * **deploy:** update deployment manifests
 * **deploy:** update deployment manifests
@@ -61,7 +65,9 @@ Versions are based on [Semantic Versioning](http://semver.org/), and the changel
 * **build:** add QEMU setup step to the build workflow
 * **build:** correct docker build context to current directory
 * **build:** ensure Docker image tags and labels are correctly set
+* **deploy:** correct path in build-yaml target for deployment manifests
 * **lint:** update golangci-lint version to v2.4.0
+* **makefile:** update GITCHGLOG variable assignment and add comment for multiarch build
 * **manager:** Add environment variable reference for GitHub token secret
 
 #### 💅 Refactors
