@@ -5,7 +5,8 @@
 ![GitHub Tag](https://img.shields.io/github/v/tag/odit-services/ghops?style=for-the-badge&logo=git) ![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/odit-services/ghops?style=for-the-badge&logo=go)
 
 Does the "GH" in "ghops" stand for GitHub? Maybe, maybe not. Maybe it stands for "ghost hops" 👻🍺 or "Git Happyness".
-All we know is that this is a kubernetes operator to manage stuff on GitHub.
+
+All we know is that this is a Kubernetes operator to manage stuff on GitHub.
 
 ## Description
 
