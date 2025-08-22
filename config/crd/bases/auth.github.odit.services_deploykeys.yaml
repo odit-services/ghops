@@ -39,6 +39,13 @@ spec:
           spec:
             description: DeployKeySpec defines the desired state of DeployKey.
             properties:
+              owner:
+                description: |-
+                  Owner is the name of the owner (user or org) who owns the repository.
+                  Example: "odit-services"
+                maxLength: 255
+                minLength: 1
+                type: string
               permission:
                 default: read-only
                 description: Permission defines the permission level for the deploy
@@ -50,8 +57,7 @@ spec:
               repository:
                 description: |-
                   Repository is the name of the repository to which this deploy key applies.
-                  It should be in the format "owner/repo".
-                  Example: "odit-services/ghops"
+                  Example: "ghops"
                 maxLength: 255
                 minLength: 1
                 type: string
@@ -61,6 +67,7 @@ spec:
                 minLength: 1
                 type: string
             required:
+            - owner
             - permission
             - repository
             type: object
@@ -70,6 +77,9 @@ spec:
               created:
                 type: boolean
               currentRetries:
+                type: integer
+              githubKeyID:
+                format: int64
                 type: integer
               lastAction:
                 type: string
