@@ -6,4 +6,7 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
   name: deploykey-sample
 spec:
-  # TODO(user): Add fields here
+  title: Sample Deploy Key
+  owner: odit-services
+  repository: ghops
+  permission: read
