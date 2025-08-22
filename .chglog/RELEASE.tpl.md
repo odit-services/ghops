@@ -1,0 +1,33 @@
+{{- range .Versions -}}
+# Release <a name="{{ .Tag.Name }}"></a>
+
+> {{ datetime "2006-01-02" .Tag.Date }}
+
+## Changes
+
+{{ range .CommitGroups -}}
+{{ if eq .Title "Feat" }}#### 🚀 Enhancements{{ else if eq .Title "Perf" }}#### 🔥 Performance{{ else if eq .Title "Fix" }}#### 🩹 Fixes{{ else if eq .Title "Refactor" }}#### 💅 Refactors{{ else if eq .Title "Docs" }}#### 📖 Documentation{{ else if eq .Title "Build" }}#### 📦 Build{{ else if eq .Title "Chore" }}#### 🏡 Chore{{ else if eq .Title "Test" }}#### ✅ Tests{{ else if eq .Title "Style" }}#### 🎨 Styles{{ end }}
+
+{{ range .Commits -}}
+* {{ if .Scope }}**{{ .Scope }}:** {{ end }}{{ .Subject }}
+{{ end }}
+{{ end -}}
+
+{{- if .MergeCommits -}}
+#### Pull Requests
+
+{{ range .MergeCommits -}}
+* {{ .Header }}
+{{ end }}
+{{ end -}}
+
+{{- if .NoteGroups -}}
+{{ range .NoteGroups -}}
+#### {{ .Title }}
+
+{{ range .Notes }}
+{{ .Body }}
+{{ end }}
+{{ end -}}
+{{ end -}}
+{{ end -}}

@@ -378,6 +378,10 @@ changelog: git-chglog ## Generate code containing DeepCopy, DeepCopyInto, and De
 	git add CHANGELOG.md
 	git commit -m "chore: update changelog"
 
+.PHONY: releasebody
+releasebody: git-chglog ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
+	$(GITCHGLOG) -t .chglog/RELEASE.tpl.md $(TAG)
+
 .PHONY: tag
 tag: ## Tag the current commit with the version number.
 	git tag -a v$(VERSION) -m "Release v$(VERSION)"

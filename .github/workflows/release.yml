@@ -1,0 +1,29 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  release:
+    name: Generate a github release for the current tag
+    runs-on: actions-runner-kube-niggl
+    steps:
+      - name: Clone the code
+        uses: actions/checkout@v4
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Install git-chglog
+        run: go install github.com/git-chglog/git-chglog/cmd/git-chglog@latest
+      - name: Generate release body
+        run: git-chglog -t .chglog/RELEASE.tpl.md -o release_body.md $(GITHUB_REF_NAME)
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            config/deployment/full.yaml
+            config/deployment/crds.yaml
+          body_path: release_body.md
