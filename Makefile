@@ -234,7 +234,7 @@ KUSTOMIZE ?= $(LOCALBIN)/kustomize
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
 GOLANGCI_LINT = $(LOCALBIN)/golangci-lint
-GITCHGLOG ?= $(LOCALBIN)/git-chglog-$(GITCHGLOG_VERSION)
+GITCHGLOG ?= $(LOCALBIN)/git-chglog
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.6.0
@@ -392,3 +392,4 @@ git-push:
 
 .PHONY: release
 release: build-yaml tag changelog git-push  ## Generate a changelog and tag the current commit with the version number.
+# 	make docker-build-multiarch IMG=$(IMG)
