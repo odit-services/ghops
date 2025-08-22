@@ -31,6 +31,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/google/go-github/v74/github"
 	authv1alpha1 "github.com/odit-services/ghops/api/v1alpha1"
@@ -88,6 +89,11 @@ func (r *DeployKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	if err := r.Get(ctx, req.NamespacedName, deploykey); err != nil {
 		r.logger.Errorw("Failed to get DeployKey", "name", req.Name, "namespace", req.Namespace, "error", err)
 		return r.HandleError(deploykey, err)
+	}
+
+	if deploykey.Status.State == authv1alpha1.StateFailed {
+		r.logger.Infow("DeployKey is in failed state, requeuing", "name", deploykey.Name, "namespace", deploykey.Namespace)
+		return ctrl.Result{}, nil
 	}
 
 	deploykey.Status.State = authv1alpha1.StateReconciling
@@ -234,7 +240,9 @@ func (r *DeployKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 	}
 
-	return ctrl.Result{}, nil
+	return ctrl.Result{
+		RequeueAfter: 5 * time.Minute, // Requeue after 5 minutes to check the status again
+	}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -273,6 +281,7 @@ func (r *DeployKeyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.logger.Infow("Setting up DeployKeyReconciler with controller manager")
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&authv1alpha1.DeployKey{}).
+		WithEventFilter(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{})).
 		Named("deploykey").
 		Complete(r)
 }
