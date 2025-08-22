@@ -5,10 +5,28 @@ Versions are based on [Semantic Versioning](http://semver.org/), and the changel
 
 ## Version History
 
+* [v0.2.1](#v0.2.1)
 * [v0.2.0](#v0.2.0)
 * [v0.1.0](#v0.1.0)
 
 ## Changes
+
+<a name="v0.2.1"></a>
+### [v0.2.1](https://github.com/odit-services/s3ops/compare/v0.2.0...v0.2.1)
+
+> 2025-08-22
+
+#### 🏡 Chore
+
+* update changelog
+* **deploy:** update deployment manifests
+* **kustomization:** change file permissions from 755 to 644
+
+#### 🚀 Enhancements
+
+* **deploykey:** implement retry logic and max retries for DeployKey reconciliation
+* **deploykey:** handle failed state and requeue logic in DeployKey reconciler
+
 
 <a name="v0.2.0"></a>
 ### [v0.2.0](https://github.com/odit-services/s3ops/compare/v0.1.0...v0.2.0)
