@@ -392,4 +392,3 @@ git-push:
 
 .PHONY: release
 release: build-yaml tag changelog git-push  ## Generate a changelog and tag the current commit with the version number.
-	make docker-build-multiarch IMG=$(IMG)
