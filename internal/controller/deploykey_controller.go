@@ -185,14 +185,14 @@ func (r *DeployKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		switch deploykey.Spec.KeyType {
 		case authv1alpha1.ED25519:
 			r.logger.Infow("Generating ED25519 key pair for deploy key", "name", deploykey.Name, "namespace", deploykey.Namespace)
-			pubKey, privKey, err = r.sshservice.GenerateED25519KeyPair()
+			privKey, pubKey, err = r.sshservice.GenerateED25519KeyPair()
 			if err != nil {
 				r.logger.Errorw("Failed to generate ED25519 SSH key pair", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", err)
 				return r.HandleError(deploykey, err)
 			}
 		case authv1alpha1.RSA:
 			r.logger.Infow("Generating RSA key pair for deploy key", "name", deploykey.Name, "namespace", deploykey.Namespace)
-			pubKey, privKey, err = r.sshservice.GenerateRSAKeyPair()
+			privKey, pubKey, err = r.sshservice.GenerateRSAKeyPair()
 			if err != nil {
 				r.logger.Errorw("Failed to generate RSA SSH key pair", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", err)
 				return r.HandleError(deploykey, err)
