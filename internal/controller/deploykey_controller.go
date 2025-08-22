@@ -33,7 +33,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"github.com/google/go-github/v74/github"
-	"github.com/odit-services/ghops/api/v1alpha1"
 	authv1alpha1 "github.com/odit-services/ghops/api/v1alpha1"
 	"github.com/odit-services/ghops/internal/services"
 )
@@ -91,7 +90,7 @@ func (r *DeployKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return r.HandleError(deploykey, err)
 	}
 
-	deploykey.Status.CrStatus.State = v1alpha1.StateReconciling
+	deploykey.Status.State = authv1alpha1.StateReconciling
 	if err := r.Status().Update(ctx, deploykey); err != nil {
 		r.logger.Errorw("Failed to update DeployKey status to Reconciling", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", err)
 		return r.HandleError(deploykey, err)
@@ -101,7 +100,7 @@ func (r *DeployKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	if deploykey.DeletionTimestamp != nil {
 		r.logger.Infow("DeployKey is marked for deletion", "name", deploykey.Name, "namespace", deploykey.Namespace)
 
-		deploykey.Status.CrStatus.LastAction = v1alpha1.ActionDelete
+		deploykey.Status.LastAction = authv1alpha1.ActionDelete
 		if err := r.Status().Update(ctx, deploykey); err != nil {
 			r.logger.Errorw("Failed to update DeployKey status to Reconciling", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", err)
 			return r.HandleError(deploykey, err)
@@ -124,7 +123,7 @@ func (r *DeployKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			return r.HandleError(deploykey, err)
 		}
 
-		deploykey.Status.CrStatus.State = v1alpha1.StateSuccess
+		deploykey.Status.State = authv1alpha1.StateSuccess
 		if err := r.Status().Update(ctx, deploykey); err != nil {
 			r.logger.Errorw("Failed to update DeployKey status after deletion", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", err)
 			return r.HandleError(deploykey, err)
@@ -145,9 +144,9 @@ func (r *DeployKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		r.logger.Debugw("Finalizer added to deploykey resource", "name", req.Name, "namespace", req.Namespace)
 	}
 
-	if deploykey.Status.Created == false {
+	if !deploykey.Status.Created {
 		r.logger.Infow("Creating deploy key", "name", deploykey.Name, "namespace", deploykey.Namespace)
-		deploykey.Status.CrStatus.LastAction = v1alpha1.ActionCreate
+		deploykey.Status.LastAction = authv1alpha1.ActionCreate
 		if err := r.Status().Update(ctx, deploykey); err != nil {
 			r.logger.Errorw("Failed to update DeployKey status to Reconciling", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", err)
 			return r.HandleError(deploykey, err)
@@ -156,14 +155,14 @@ func (r *DeployKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		var pubKey, privKey string
 		var err error
 		switch deploykey.Spec.KeyType {
-		case v1alpha1.ED25519:
+		case authv1alpha1.ED25519:
 			r.logger.Infow("Generating ED25519 key pair for deploy key", "name", deploykey.Name, "namespace", deploykey.Namespace)
 			pubKey, privKey, err = r.sshservice.GenerateED25519KeyPair()
 			if err != nil {
 				r.logger.Errorw("Failed to generate ED25519 SSH key pair", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", err)
 				return r.HandleError(deploykey, err)
 			}
-		case v1alpha1.RSA:
+		case authv1alpha1.RSA:
 			r.logger.Infow("Generating RSA key pair for deploy key", "name", deploykey.Name, "namespace", deploykey.Namespace)
 			pubKey, privKey, err = r.sshservice.GenerateRSAKeyPair()
 			if err != nil {
@@ -192,13 +191,13 @@ func (r *DeployKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			return r.HandleError(deploykey, err)
 		}
 
-		deploykey.Status.SecretRef = secret.ObjectMeta.Name
+		deploykey.Status.SecretRef = secret.Name
 		if err := r.Status().Update(ctx, deploykey); err != nil {
 			r.logger.Errorw("Failed to update DeployKey status secretref", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", err)
 			return r.HandleError(deploykey, err)
 		}
 
-		readOnly := deploykey.Spec.Permission == v1alpha1.ReadOnly
+		readOnly := deploykey.Spec.Permission == authv1alpha1.ReadOnly
 		keyrequest := &github.Key{
 			Key:      &pubKey,
 			Title:    &deploykey.Spec.Title,
@@ -212,10 +211,10 @@ func (r *DeployKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 
 		deploykey.Status.Created = true
-		deploykey.Status.CrStatus.State = v1alpha1.StateSuccess
-		deploykey.Status.CrStatus.LastMessage = "Deploy key created successfully"
-		deploykey.Status.CrStatus.LastReconcileTime = time.Now().Format(time.RFC3339)
-		deploykey.Status.CrStatus.CurrentRetries = 0
+		deploykey.Status.State = authv1alpha1.StateSuccess
+		deploykey.Status.LastMessage = "Deploy key created successfully"
+		deploykey.Status.LastReconcileTime = time.Now().Format(time.RFC3339)
+		deploykey.Status.CurrentRetries = 0
 		deploykey.Status.GitHubKeyID = keyresponse.GetID()
 
 		if err := r.Status().Update(ctx, deploykey); err != nil {
@@ -227,8 +226,8 @@ func (r *DeployKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 	} else {
 		r.logger.Infow("Deploy key already exists, doing nothing...", "name", deploykey.Name, "namespace", deploykey.Namespace)
-		deploykey.Status.CrStatus.LastAction = v1alpha1.ActionUpdate
-		deploykey.Status.CrStatus.State = v1alpha1.StateSuccess
+		deploykey.Status.LastAction = authv1alpha1.ActionUpdate
+		deploykey.Status.State = authv1alpha1.StateSuccess
 		if err := r.Status().Update(ctx, deploykey); err != nil {
 			r.logger.Errorw("Failed to update DeployKey status to Reconciling", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", err)
 			return r.HandleError(deploykey, err)
@@ -254,7 +253,9 @@ func (r *DeployKeyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	zapConfig := zap.NewProductionConfig()
 	zapConfig.Level = zap.NewAtomicLevelAt(zapLogLevel)
 	zapLogger, _ := zapConfig.Build()
-	defer zapLogger.Sync()
+	defer func() {
+		_ = zapLogger.Sync()
+	}()
 	r.logger = zapLogger.Sugar()
 
 	ghToken := os.Getenv("GITHUB_TOKEN")
