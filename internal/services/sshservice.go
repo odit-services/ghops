@@ -51,7 +51,7 @@ func (s *DefaultSSHService) GenerateRSAKeyPair() (privateKey string, publicKey s
 	var pubKeyBuf strings.Builder
 	pubKeyBuf.Write(ssh.MarshalAuthorizedKey(pub))
 
-	return pubKeyBuf.String(), privKeyBuf.String(), nil
+	return privKeyBuf.String(), pubKeyBuf.String(), nil
 }
 
 func (s *DefaultSSHService) GenerateED25519KeyPair() (privateKey string, publicKey string, err error) {
