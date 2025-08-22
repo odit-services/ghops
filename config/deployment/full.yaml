@@ -406,7 +406,7 @@ spec:
         envFrom:
         - secretRef:
             name: ghops
-        image: ghcr.io/odit-services/ghops:v0.3.1
+        image: ghcr.io/odit-services/ghops:v0.3.2
         livenessProbe:
           httpGet:
             path: /healthz
