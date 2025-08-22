@@ -1,22 +1,55 @@
 # ghops
-// TODO(user): Add simple overview of use/purpose
+
+> We are not related to GitHub in any way other than using their platform. All rights to the name "GitHub" are owned by GitHub, Inc.
+
+![GitHub Tag](https://img.shields.io/github/v/tag/odit-services/ghops?style=for-the-badge&logo=git) ![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/odit-services/ghops?style=for-the-badge&logo=go)
+
+A kubernetes operator to manage stuff on GitHub.
 
 ## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
 
-## Getting Started
+### Supported resources
+
+- DeployKey: A GitHub deploy key for a repository.
+
+## Deploy the operator
 
 ### Prerequisites
-- go version v1.24.0+
+
+- kubectl version v1.11.3+.
+- Access to a Kubernetes v1.11.3+ cluster.
+
+### Deploy the full operator
+
+> This includes the CRDs, RBAC, and the controller itself.
+
+```sh
+# Deploy the latest version
+kubectl apply -f https://raw.githubusercontent.com/odit-services/ghops/main/config/deployment/full.yaml
+
+# Deploy a specific version
+kubectl apply -f https://raw.githubusercontent.com/odit-services/ghops/<tag>/config/deployment/full.yaml
+```
+
+## Getting started with the development
+
+### Local prerequisites
+
+- go version v1.25.0+
 - docker version 17.03+.
 - kubectl version v1.11.3+.
 - Access to a Kubernetes v1.11.3+ cluster.
 
-### To Deploy on the cluster
+### To deploy on the cluster
+
 **Build and push your image to the location specified by `IMG`:**
 
 ```sh
-make docker-build docker-push IMG=<some-registry>/ghops:tag
+# Single Arch
+make docker-build docker-push IMG=ghcr.io/odit-services/ghops:tag
+
+# Multi Arch
+make docker-build-multiarch IMG=ghcr.io/odit-services/ghops:tag
 ```
 
 **NOTE:** This image ought to be published in the personal registry you specified.
@@ -32,7 +65,7 @@ make install
 **Deploy the Manager to the cluster with the image specified by `IMG`:**
 
 ```sh
-make deploy IMG=<some-registry>/ghops:tag
+make deploy IMG=ghcr.io/odit-services/ghops:tag
 ```
 
 > **NOTE**: If you encounter RBAC errors, you may need to grant yourself cluster-admin
@@ -47,7 +80,8 @@ kubectl apply -k config/samples/
 
 >**NOTE**: Ensure that the samples has default values to test it out.
 
-### To Uninstall
+### To uninstall
+
 **Delete the instances (CRs) from the cluster:**
 
 ```sh
@@ -66,52 +100,18 @@ make uninstall
 make undeploy
 ```
 
-## Project Distribution
-
-Following the options to release and provide this solution to the users.
-
-### By providing a bundle with all YAML files
-
-1. Build the installer for the image built and published in the registry:
-
-```sh
-make build-installer IMG=<some-registry>/ghops:tag
-```
-
-**NOTE:** The makefile target mentioned above generates an 'install.yaml'
-file in the dist directory. This file contains all the resources built
-with Kustomize, which are necessary to install this project without its
-dependencies.
-
-2. Using the installer
-
-Users can just run 'kubectl apply -f <URL for YAML BUNDLE>' to install
-the project, i.e.:
-
-```sh
-kubectl apply -f https://raw.githubusercontent.com/<org>/ghops/<tag or branch>/dist/install.yaml
-```
-
-### By providing a Helm Chart
-
-1. Build the chart using the optional helm plugin
-
-```sh
-operator-sdk edit --plugins=helm/v1-alpha
-```
-
-2. See that a chart was generated under 'dist/chart', and users
-can obtain this solution from there.
-
-**NOTE:** If you change the project, you need to update the Helm Chart
-using the same command above to sync the latest changes. Furthermore,
-if you create webhooks, you need to use the above command with
-the '--force' flag and manually ensure that any custom configuration
-previously added to 'dist/chart/values.yaml' or 'dist/chart/manager/manager.yaml'
-is manually re-applied afterwards.
-
 ## Contributing
-// TODO(user): Add detailed information on how you would like others to contribute to this project
+
+Feel free to contribute to this project by following the steps below:
+
+1. Fork the repository
+2. Create a new branch (git checkout -b feat/some-feature)
+3. Make changes
+4. Commit your changes (git commit -am 'Add some feature')
+5. Push to the branch (git push origin feat/some-feature)
+6. Create a new Pull Request
+
+All new features and bug fixes should have associated tests.
 
 **NOTE:** Run `make help` for more information on all potential `make` targets
 
@@ -132,4 +132,3 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-
