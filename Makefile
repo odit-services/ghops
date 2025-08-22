@@ -380,8 +380,8 @@ tag: ## Tag the current commit with the version number.
 
 .PHONY: build-yaml
 build-yaml: kustomize
-	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG} && cd ../..
-	$(KUSTOMIZE) build config/default/ > config/deployment/full.yaml
+	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
+	$(KUSTOMIZE) build config/default > config/deployment/full.yaml
 	$(KUSTOMIZE) build config/crd/ > config/deployment/crds.yaml
 	git add config/deployment/full.yaml config/deployment/crds.yaml config/manager/kustomization.yaml
 	git commit -m "chore(deploy): update deployment manifests"
