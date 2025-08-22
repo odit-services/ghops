@@ -18,10 +18,6 @@ package controller
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
-	"crypto/x509"
-	"encoding/pem"
 	"fmt"
 	"os"
 	"strings"
@@ -29,7 +25,6 @@ import (
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"golang.org/x/crypto/ssh"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -40,14 +35,16 @@ import (
 	"github.com/google/go-github/v74/github"
 	"github.com/odit-services/ghops/api/v1alpha1"
 	authv1alpha1 "github.com/odit-services/ghops/api/v1alpha1"
+	"github.com/odit-services/ghops/internal/services"
 )
 
 // DeployKeyReconciler reconciles a DeployKey object
 type DeployKeyReconciler struct {
 	client.Client
-	Scheme   *runtime.Scheme
-	logger   *zap.SugaredLogger
-	ghclient *github.Client
+	Scheme     *runtime.Scheme
+	logger     *zap.SugaredLogger
+	ghclient   *github.Client
+	sshservice services.SSHService
 }
 
 const GitHubKnownHosts = `
@@ -156,9 +153,26 @@ func (r *DeployKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			return r.HandleError(deploykey, err)
 		}
 
-		pubKey, privKey, err := MakeSSHKeyPair()
-		if err != nil {
-			r.logger.Errorw("Failed to generate SSH key pair", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", err)
+		var pubKey, privKey string
+		var err error
+		switch deploykey.Spec.KeyType {
+		case v1alpha1.ED25519:
+			r.logger.Infow("Generating ED25519 key pair for deploy key", "name", deploykey.Name, "namespace", deploykey.Namespace)
+			pubKey, privKey, err = r.sshservice.GenerateED25519KeyPair()
+			if err != nil {
+				r.logger.Errorw("Failed to generate ED25519 SSH key pair", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", err)
+				return r.HandleError(deploykey, err)
+			}
+		case v1alpha1.RSA:
+			r.logger.Infow("Generating RSA key pair for deploy key", "name", deploykey.Name, "namespace", deploykey.Namespace)
+			pubKey, privKey, err = r.sshservice.GenerateRSAKeyPair()
+			if err != nil {
+				r.logger.Errorw("Failed to generate RSA SSH key pair", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", err)
+				return r.HandleError(deploykey, err)
+			}
+		default:
+			err := fmt.Errorf("unsupported key type: %s", deploykey.Spec.KeyType)
+			r.logger.Errorw("Invalid key type specified for deploy key", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", err)
 			return r.HandleError(deploykey, err)
 		}
 
@@ -224,33 +238,6 @@ func (r *DeployKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	return ctrl.Result{}, nil
 }
 
-func MakeSSHKeyPair() (string, string, error) {
-	// generate private key
-	privateKey, err := rsa.GenerateKey(rand.Reader, 1024)
-	if err != nil {
-		return "", "", err
-	}
-
-	// write private key as PEM
-	var privKeyBuf strings.Builder
-
-	privateKeyPEM := &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(privateKey)}
-	if err := pem.Encode(&privKeyBuf, privateKeyPEM); err != nil {
-		return "", "", err
-	}
-
-	// generate and write public key
-	pub, err := ssh.NewPublicKey(&privateKey.PublicKey)
-	if err != nil {
-		return "", "", err
-	}
-
-	var pubKeyBuf strings.Builder
-	pubKeyBuf.Write(ssh.MarshalAuthorizedKey(pub))
-
-	return pubKeyBuf.String(), privKeyBuf.String(), nil
-}
-
 // SetupWithManager sets up the controller with the Manager.
 func (r *DeployKeyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	logLevel := os.Getenv("LOG_LEVEL")
@@ -277,6 +264,10 @@ func (r *DeployKeyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	r.ghclient = github.NewClient(nil).WithAuthToken(ghToken)
 	r.logger.Infow("DeployKeyReconciler initialized", "logLevel", logLevel)
+
+	r.sshservice = &services.DefaultSSHService{
+		RSAKeyLength: services.DefaultRSAKeyLength,
+	}
 
 	r.logger.Infow("Setting up DeployKeyReconciler with controller manager")
 	return ctrl.NewControllerManagedBy(mgr).

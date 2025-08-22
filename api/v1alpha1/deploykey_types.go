@@ -46,6 +46,13 @@ type DeployKeySpec struct {
 	// +kubebuilder:validation:Required
 	// +kubebuilder:default=read-only
 	Permission Permission `json:"permission,omitempty" yaml:"permission,omitempty"`
+
+	//+kubebuilder:validation:Optional
+	//+kubebuilder:default=ed25519
+	//+kubebuilder:validation:Enum=ed25519;rsa
+	// KeyType defines the type of SSH key to generate.
+	// Supported values: "ed25519", "rsa"
+	KeyType KeyType `json:"keyType,omitempty" yaml:"keyType,omitempty"`
 }
 
 // Permission defines the permission level for the deploy key.
@@ -56,6 +63,15 @@ const (
 	ReadOnly Permission = "read-only"
 	// ReadWrite indicates that the deploy key has both read and write access.
 	ReadWrite Permission = "read-write"
+)
+
+type KeyType string
+
+const (
+	// ED25519
+	ED25519 KeyType = "ed25519"
+	// RSA
+	RSA KeyType = "rsa"
 )
 
 // DeployKeyStatus defines the observed state of DeployKey.

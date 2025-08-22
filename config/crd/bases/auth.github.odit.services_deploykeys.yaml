@@ -39,6 +39,15 @@ spec:
           spec:
             description: DeployKeySpec defines the desired state of DeployKey.
             properties:
+              keyType:
+                default: ed25519
+                description: |-
+                  KeyType defines the type of SSH key to generate.
+                  Supported values: "ed25519", "rsa"
+                enum:
+                - ed25519
+                - rsa
+                type: string
               owner:
                 description: |-
                   Owner is the name of the owner (user or org) who owns the repository.
