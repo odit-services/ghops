@@ -5,12 +5,32 @@ Versions are based on [Semantic Versioning](http://semver.org/), and the changel
 
 ## Version History
 
+* [v0.3.1](#v0.3.1)
 * [v0.3.0](#v0.3.0)
 * [v0.2.1](#v0.2.1)
 * [v0.2.0](#v0.2.0)
 * [v0.1.0](#v0.1.0)
 
 ## Changes
+
+<a name="v0.3.1"></a>
+### [v0.3.1](https://github.com/odit-services/s3ops/compare/v0.3.0...v0.3.1)
+
+> 2025-08-22
+
+#### 🏡 Chore
+
+* update changelog
+* **deploy:** update deployment manifests
+
+#### 🚀 Enhancements
+
+* **release:** add GitHub Actions workflow for automated release generation
+
+#### 🩹 Fixes
+
+* **deploykey:** handle error when deleting secret after GitHub key creation failure
+
 
 <a name="v0.3.0"></a>
 ### [v0.3.0](https://github.com/odit-services/s3ops/compare/v0.2.1...v0.3.0)
