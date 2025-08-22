@@ -3,9 +3,11 @@ name: Build
 on:
   push:
     branches:
-      - main
+      # - main
+      - none
     tags:
-      - 'v*.*.*'
+      # - 'v*.*.*'
+      - none
 
 env:
   REGISTRY: ghcr.io/odit-services
