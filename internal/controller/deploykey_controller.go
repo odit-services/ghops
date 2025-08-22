@@ -235,6 +235,7 @@ func (r *DeployKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		keyresponse, _, err := r.ghclient.Repositories.CreateKey(ctx, deploykey.Spec.Owner, deploykey.Spec.Repository, keyrequest)
 		if err != nil {
 			r.logger.Errorw("Failed to create deploy key on GitHub", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", err)
+			DeleteSecret(ctx, r.Client, deploykey.Namespace, secret.Name)
 			return r.HandleError(deploykey, err)
 		}
 
