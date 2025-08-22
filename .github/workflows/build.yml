@@ -38,7 +38,7 @@ jobs:
       - name: Build and push docker image
         uses: docker/build-push-action@v5
         with:
-          context: true
+          context: .
           push: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
