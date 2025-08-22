@@ -1,6 +1,4 @@
 {{- range .Versions -}}
-# Release <a name="{{ .Tag.Name }}"></a>
-
 > {{ datetime "2006-01-02" .Tag.Date }}
 
 ## Changes
