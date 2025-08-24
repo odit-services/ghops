@@ -4,148 +4,135 @@
 
 ![GitHub Tag](https://img.shields.io/github/v/tag/odit-services/ghops?style=for-the-badge&logo=git) ![GitHub Release Date](https://img.shields.io/github/release-date/odit-services/ghops?style=for-the-badge&label=Latest%20release) ![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/odit-services/ghops?style=for-the-badge&logo=go) ![GitHub License](https://img.shields.io/github/license/odit-services/ghops?style=for-the-badge) ![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/odit-services/ghops/lint.yml?style=for-the-badge&label=Checks)
 
-
 Does the "GH" in "ghops" stand for GitHub? Maybe, maybe not. Maybe it stands for "ghost hops" 👻🍺 or "Git Happyness".
 
-All we know is that this is a Kubernetes operator to manage stuff on GitHub.
+All we know is that this is a Kubernetes operator to manage resources on GitHub.
 
 ## Description
 
 ### Supported resources
 
-- DeployKey: A GitHub deploy key for a repository.
+- `DeployKey`: A GitHub deploy key for a repository.
 
 ## Deploy the operator
 
 ### Prerequisites
 
-- kubectl version v1.11.3+.
+- `kubectl` version v1.11.3+ (or a reasonably recent client compatible with your cluster).
 - Access to a Kubernetes v1.11.3+ cluster.
 
-### Create the secret
+### Create the GitHub credentials secret
 
-> This secret is used to authenticate with GitHub.
+This operator expects a Kubernetes secret that provides a GitHub access token used to call the GitHub API.
 
-1. Create a GitHub fine grained access token with the following permissions (to all your repositories or to all repositories in the organization):
-   - Repository read metadata
-   - Repository read and write administration
+1. Create a GitHub fine-grained personal access token with the following repository permissions (scope as needed for the target repositories/organization):
+   - Repository: Read metadata
+   - Repository: Read and write administration
 
-2. Create the secret in the `ghops-system` namespace:
+2. Create the Kubernetes secret in the namespace where the operator expects it (example: `ghops-system`):
 
-   ```sh
-   kubectl create secret generic -n ghops-system ghops --from-literal=GITHUB_TOKEN=<your-github-token>
-   ```
+```sh
+kubectl create namespace ghops-system || true
+kubectl create secret generic -n ghops-system ghops --from-literal=GITHUB_TOKEN=<your-github-token>
+```
+
+Note: If you deploy into a different namespace update the manifests or the operator configuration accordingly.
 
 ### Deploy the full operator
 
-> This includes the CRDs, RBAC, and the controller itself.
+This repository contains manifests that install CRDs, RBAC and the controller.
 
 ```sh
-# Deploy the latest version
+# Deploy the latest version from the repository
 kubectl apply -f https://raw.githubusercontent.com/odit-services/ghops/main/config/deployment/full.yaml
 
-# Deploy a specific version
+# Or deploy a specific tag
 kubectl apply -f https://raw.githubusercontent.com/odit-services/ghops/<tag>/config/deployment/full.yaml
 ```
 
-## Getting started with the development
+## Development
 
 ### Local prerequisites
 
-- go version v1.25.0+
-- docker version 17.03+.
-- kubectl version v1.11.3+.
-- Access to a Kubernetes v1.11.3+ cluster.
+- Go 1.25.0+
+- Docker (for building images)
+- `kubectl` and access to a Kubernetes cluster (kind / minikube / remote cluster)
 
-### To deploy on the cluster
+### Build and push images
 
-**Build and push your image to the location specified by `IMG`:**
+This project includes Make targets for building and publishing images.
+
+Single-arch (build for the host architecture):
 
 ```sh
-# Single Arch
 make docker-build docker-push IMG=ghcr.io/odit-services/ghops:tag
+```
 
-# Multi Arch
+Multi-arch (build for linux/amd64 and linux/arm64):
+
+```sh
 make docker-build-multiarch IMG=ghcr.io/odit-services/ghops:tag
 ```
 
-**NOTE:** This image ought to be published in the personal registry you specified.
-And it is required to have access to pull the image from the working environment.
-Make sure you have the proper permission to the registry if the above commands don’t work.
+Important note about multi-arch builds and QEMU:
+- If you are building multi-arch images on a host that is not amd64 (for example an Apple Silicon / arm64 host) and you request linux/amd64 images, Docker will use QEMU emulation. The Go runtime (and other native toolchains) can crash under incorrect or unregistered QEMU binfmt support and you'll see runtime panics like `fatal error: taggedPointerPack` during `go mod download`.
 
-**Install the CRDs into the cluster:**
+If you see such a panic in CI (or locally when building inside an emulated image), resolve it by either:
 
-```sh
-make install
+1. Registering QEMU/binfmt on the host (self-hosted runner) once with a privileged container:
+
+```powershell
+# Run on the runner host (PowerShell)
+docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
 ```
 
-**Deploy the Manager to the cluster with the image specified by `IMG`:**
+2. Building on a native amd64 runner instead of relying on emulation (for CI use `runs-on: ubuntu-latest` or another amd64 runner).
+
+3. Building only for the host's architecture (remove the linux/amd64 platform when on arm64 hosts).
+
+Either registering binfmt on the host or using a native builder will prevent the Go runtime emulation panic.
+
+### Buildx and caching (CI)
+
+The included GitHub Actions workflow uses `docker/setup-qemu-action` and `docker/setup-buildx-action` then `docker/build-push-action` with `platforms:` set to `linux/amd64,linux/arm64`. If you run this on a self-hosted runner you must ensure the runner host has QEMU/binfmt registered (see above) or run the workflow on an AMD64 runner.
+
+### Run the operator locally (development mode)
+
+To run the controller locally against a cluster (useful for debugging):
 
 ```sh
-make deploy IMG=ghcr.io/odit-services/ghops:tag
+# Run the manager locally (points to local kubeconfig)
+make run
 ```
 
-> **NOTE**: If you encounter RBAC errors, you may need to grant yourself cluster-admin
-privileges or be logged in as admin.
+This will build the binary and run the controller using the local kubeconfig context.
 
-**Create instances of your solution**
-You can apply the samples (examples) from the config/sample:
+### Tests
+
+- Unit tests (Go): `go test ./...`
+- Integration / e2e: see `test/e2e` and the `Makefile` targets. E2E tests assume a Kubernetes test environment is available.
+
+## Troubleshooting
+
+- QEMU / `taggedPointerPack` runtime panic during `go mod download` while building an amd64 image on an arm64 host: register QEMU on the runner host or use a native amd64 runner (see the QEMU note above).
+- Image pull / RBAC issues: ensure the operator service account has the correct RBAC permissions and that the image is published in a registry accessible to your cluster.
+
+## Examples / Samples
+
+Sample CRs are available under `config/samples/` — apply them to create `DeployKey` resources for testing.
 
 ```sh
 kubectl apply -k config/samples/
 ```
 
->**NOTE**: Ensure that the samples has default values to test it out.
-
-### To uninstall
-
-**Delete the instances (CRs) from the cluster:**
-
-```sh
-kubectl delete -k config/samples/
-```
-
-**Delete the APIs(CRDs) from the cluster:**
-
-```sh
-make uninstall
-```
-
-**UnDeploy the controller from the cluster:**
-
-```sh
-make undeploy
-```
-
 ## Contributing
 
-Feel free to contribute to this project by following the steps below:
+Contributions are welcome. Typical workflow:
 
 1. Fork the repository
-2. Create a new branch (git checkout -b feat/some-feature)
-3. Make changes
-4. Commit your changes (git commit -am 'Add some feature')
-5. Push to the branch (git push origin feat/some-feature)
-6. Create a new Pull Request
+2. Create a branch (e.g. `git checkout -b feat/some-feature`)
+3. Implement and test your changes
+4. Commit and push your branch
+5. Open a pull request
 
-All new features and bug fixes should have associated tests.
-
-**NOTE:** Run `make help` for more information on all potential `make` targets
-
-More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
-
-## License
-
-Copyright 2025.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+Please include tests for new features or bug fixes and make sure linters pass (`make lint` / CI).
