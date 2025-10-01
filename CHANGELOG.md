@@ -5,6 +5,7 @@ Versions are based on [Semantic Versioning](http://semver.org/), and the changel
 
 ## Version History
 
+* [v0.3.3](#v0.3.3)
 * [v0.3.2](#v0.3.2)
 * [v0.3.1](#v0.3.1)
 * [v0.3.0](#v0.3.0)
@@ -13,6 +14,30 @@ Versions are based on [Semantic Versioning](http://semver.org/), and the changel
 * [v0.1.0](#v0.1.0)
 
 ## Changes
+
+<a name="v0.3.3"></a>
+### [v0.3.3](https://github.com/odit-services/s3ops/compare/v0.3.2...v0.3.3)
+
+> 2025-10-01
+
+#### 🏡 Chore
+
+* add Apache License 2.0 to the repository
+* correct capitalization of "Kubernetes" in README
+* update README to clarify meaning of "GH" in ghops
+* change file permissions for kustomization.yaml
+* update changelog
+* **deploy:** update deployment manifests
+
+#### 📖 Documentation
+
+* improve README clarity and formatting for GitHub operator instructions
+* update README to include additional badges for release date, license, and workflow status
+
+#### 🩹 Fixes
+
+* adjust requeue delay for deploykey handling based on error type
+
 
 <a name="v0.3.2"></a>
 ### [v0.3.2](https://github.com/odit-services/s3ops/compare/v0.3.1...v0.3.2)
