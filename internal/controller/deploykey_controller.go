@@ -93,8 +93,12 @@ func (r *DeployKeyReconciler) HandleError(deploykey *authv1alpha1.DeployKey, err
 		r.logger.Errorw("Max retries reached for deploykey", "name", deploykey.Name, "namespace", deploykey.Namespace)
 		return ctrl.Result{}, fmt.Errorf("max retries reached for deploykey %s/%s: %v", deploykey.Namespace, deploykey.Name, err)
 	}
+	var requeueDelay time.Duration = 5 * time.Minute
+	if strings.Contains(err.Error(), "rate limit exceeded") {
+		requeueDelay = 30 * time.Minute
+	}
 	r.logger.Infow("Requeue deploykey", "name", deploykey.Name, "namespace", deploykey.Namespace)
-	return ctrl.Result{RequeueAfter: 1 * time.Minute}, err
+	return ctrl.Result{RequeueAfter: requeueDelay}, err
 }
 
 // +kubebuilder:rbac:groups=auth.github.odit.services,resources=deploykeys,verbs=get;list;watch;create;update;patch;delete
