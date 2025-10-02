@@ -73,12 +73,26 @@ func (r *DeployKeyReconciler) HandleError(deploykey *authv1alpha1.DeployKey, err
 		return ctrl.Result{}, err
 	}
 	r.logger.Errorw("Failed to reconcile deploykey", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", err)
-	if deploykey.Status.CurrentRetries >= MaxRetries {
+
+	// Determine classification of error (rate limit vs other) early
+	var errMsg string
+	if err != nil {
+		errMsg = err.Error()
+	}
+	isRateLimit := strings.Contains(errMsg, "rate limit") || strings.Contains(errMsg, "403")
+
+	// Decide next retry count: don't increment on rate limit (we want long backoff but not exhaust retries)
+	nextRetries := deploykey.Status.CurrentRetries
+	if !isRateLimit {
+		nextRetries = deploykey.Status.CurrentRetries + 1
+	}
+
+	if nextRetries >= MaxRetries {
 		deploykey.Status = authv1alpha1.DeployKeyStatus{
 			CrStatus: authv1alpha1.CrStatus{
 				State:             authv1alpha1.StateFailed,
 				LastAction:        deploykey.Status.LastAction,
-				LastMessage:       fmt.Sprintf("Failed to reconcile deploykey after %d retries: %v", MaxRetries, err),
+				LastMessage:       fmt.Sprintf("Failed to reconcile deploykey after %d attempts: %v", MaxRetries, err),
 				LastReconcileTime: time.Now().Format(time.RFC3339),
 				CurrentRetries:    0,
 			},
@@ -92,7 +106,7 @@ func (r *DeployKeyReconciler) HandleError(deploykey *authv1alpha1.DeployKey, err
 				LastAction:        deploykey.Status.LastAction,
 				LastMessage:       fmt.Sprintf("Failed to reconcile deploykey: %v", err),
 				LastReconcileTime: time.Now().Format(time.RFC3339),
-				CurrentRetries:    deploykey.Status.CurrentRetries + 1,
+				CurrentRetries:    nextRetries,
 			},
 			SecretRef: deploykey.Status.SecretRef,
 			Created:   deploykey.Status.Created,
@@ -100,31 +114,38 @@ func (r *DeployKeyReconciler) HandleError(deploykey *authv1alpha1.DeployKey, err
 	}
 	updateErr := r.Status().Update(context.Background(), deploykey)
 	if updateErr != nil {
-		r.logger.Errorw("Failed to update deploykey status", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", updateErr)
-		return ctrl.Result{RequeueAfter: 1 * time.Minute}, err
+		if apierrors.IsConflict(updateErr) || apierrors.IsNotFound(updateErr) {
+			// Ignore conflicts/notfound for error status updates; we'll pick up latest state next reconcile
+			r.logger.Debugw("Status update conflict/notfound recording error; proceeding with backoff", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", updateErr)
+		} else {
+			// Log but continue to apply backoff with original error classification
+			r.logger.Errorw("Failed to update deploykey status (non-terminal)", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", updateErr)
+		}
 	}
 
-	if deploykey.Status.CurrentRetries >= MaxRetries {
+	if nextRetries >= MaxRetries {
 		r.logger.Errorw("Max retries reached for deploykey", "name", deploykey.Name, "namespace", deploykey.Namespace)
 		return ctrl.Result{}, fmt.Errorf("max retries reached for deploykey %s/%s: %v", deploykey.Namespace, deploykey.Name, err)
 	}
 
-	// Implement exponential backoff with jitter
+	// Backoff calculation uses nextRetries (the number after potential increment) for non-rate-limit
 	var requeueDelay time.Duration
-	if strings.Contains(err.Error(), "rate limit") || strings.Contains(err.Error(), "403") {
-		// For rate limiting, use longer delays
-		requeueDelay = time.Duration(RateLimitBaseDelay.Minutes()+float64(deploykey.Status.CurrentRetries*10)) * time.Minute
-		r.logger.Warnw("Rate limit detected, using extended backoff", "name", deploykey.Name, "namespace", deploykey.Namespace, "delay", requeueDelay)
-	} else {
-		// Exponential backoff for other errors: 5m, 10m, 20m, 40m...
-		requeueDelay = time.Duration(5*(1<<deploykey.Status.CurrentRetries)) * time.Minute
+	if isRateLimit {
+		// For rate limiting, keep retries stable and use base + additive component (still bounded)
+		requeueDelay = time.Duration(RateLimitBaseDelay.Minutes()+float64(nextRetries*10)) * time.Minute
 		if requeueDelay > MaxRequeueDelay {
-			requeueDelay = MaxRequeueDelay // Cap at 1 hour
+			requeueDelay = MaxRequeueDelay
+		}
+		r.logger.Warnw("Rate limit detected, using extended backoff", "name", deploykey.Name, "namespace", deploykey.Namespace, "delay", requeueDelay, "retries", nextRetries)
+	} else {
+		requeueDelay = time.Duration(5*(1<<nextRetries)) * time.Minute
+		if requeueDelay > MaxRequeueDelay {
+			requeueDelay = MaxRequeueDelay
 		}
 	}
 
-	r.logger.Infow("Requeue deploykey with backoff", "name", deploykey.Name, "namespace", deploykey.Namespace, "delay", requeueDelay, "retries", deploykey.Status.CurrentRetries)
-	return ctrl.Result{RequeueAfter: requeueDelay}, err
+	r.logger.Infow("Requeue deploykey with backoff", "name", deploykey.Name, "namespace", deploykey.Namespace, "delay", requeueDelay, "retries", nextRetries)
+	return ctrl.Result{RequeueAfter: requeueDelay}, nil
 }
 
 // +kubebuilder:rbac:groups=auth.github.odit.services,resources=deploykeys,verbs=get;list;watch;create;update;patch;delete
@@ -163,12 +184,16 @@ func (r *DeployKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 	}
 
-	// Only update status if it's actually changing
-	if deploykey.Status.State != authv1alpha1.StateReconciling && deploykey.DeletionTimestamp == nil {
+	// Only update status to Reconciling early for non-create/non-delete flows to reduce conflicts
+	if deploykey.DeletionTimestamp == nil && deploykey.Status.Created && deploykey.Status.State != authv1alpha1.StateReconciling {
 		deploykey.Status.State = authv1alpha1.StateReconciling
 		if err := r.Status().Update(ctx, deploykey); err != nil {
-			r.logger.Errorw("Failed to update DeployKey status to Reconciling", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", err)
-			return r.HandleError(deploykey, err)
+			if apierrors.IsConflict(err) {
+				r.logger.Debugw("Status update conflict setting Reconciling (existing resource); skipping", "name", deploykey.Name, "namespace", deploykey.Namespace)
+			} else {
+				r.logger.Errorw("Failed to update DeployKey status to Reconciling", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", err)
+				return r.HandleError(deploykey, err)
+			}
 		}
 	}
 
@@ -178,8 +203,12 @@ func (r *DeployKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 		deploykey.Status.LastAction = authv1alpha1.ActionDelete
 		if err := r.Status().Update(ctx, deploykey); err != nil {
-			r.logger.Errorw("Failed to update DeployKey status to Reconciling", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", err)
-			return r.HandleError(deploykey, err)
+			if apierrors.IsConflict(err) {
+				r.logger.Debugw("Status update conflict writing delete LastAction; continuing", "name", deploykey.Name, "namespace", deploykey.Namespace)
+			} else {
+				r.logger.Errorw("Failed to update DeployKey status to Reconciling", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", err)
+				return r.HandleError(deploykey, err)
+			}
 		}
 
 		// Only attempt to delete from GitHub if we have a valid key ID
@@ -264,8 +293,12 @@ func (r *DeployKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		r.logger.Infow("Creating deploy key", "name", deploykey.Name, "namespace", deploykey.Namespace)
 		deploykey.Status.LastAction = authv1alpha1.ActionCreate
 		if err := r.Status().Update(ctx, deploykey); err != nil {
-			r.logger.Errorw("Failed to update DeployKey status to Reconciling", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", err)
-			return r.HandleError(deploykey, err)
+			if apierrors.IsConflict(err) {
+				r.logger.Debugw("Status update conflict setting create LastAction; continuing", "name", deploykey.Name, "namespace", deploykey.Namespace)
+			} else {
+				r.logger.Errorw("Failed to update DeployKey status to Reconciling", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", err)
+				return r.HandleError(deploykey, err)
+			}
 		}
 
 		var pubKey, privKey string
@@ -309,8 +342,12 @@ func (r *DeployKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 		deploykey.Status.SecretRef = secret.Name
 		if err := r.Status().Update(ctx, deploykey); err != nil {
-			r.logger.Errorw("Failed to update DeployKey status secretref", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", err)
-			return r.HandleError(deploykey, err)
+			if apierrors.IsConflict(err) {
+				r.logger.Debugw("Status update conflict writing SecretRef; skipping error handling", "name", deploykey.Name, "namespace", deploykey.Namespace)
+			} else {
+				r.logger.Errorw("Failed to update DeployKey status secretref", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", err)
+				return r.HandleError(deploykey, err)
+			}
 		}
 
 		readOnly := deploykey.Spec.Permission == authv1alpha1.ReadOnly
@@ -320,9 +357,9 @@ func (r *DeployKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			ReadOnly: &readOnly,
 		}
 
-		keyresponse, resp, err := r.ghclient.Repositories.CreateKey(ctx, deploykey.Spec.Owner, deploykey.Spec.Repository, keyrequest)
-		if err != nil {
-			r.logger.Errorw("Failed to create deploy key on GitHub", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", err)
+		keyresponse, resp, ghErr := r.ghclient.Repositories.CreateKey(ctx, deploykey.Spec.Owner, deploykey.Spec.Repository, keyrequest)
+		if ghErr != nil {
+			r.logger.Errorw("Failed to create deploy key on GitHub", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", ghErr)
 
 			// Log rate limit information if available
 			if resp != nil && resp.Header != nil {
@@ -336,12 +373,12 @@ func (r *DeployKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 				}
 			}
 
-			err = DeleteSecret(ctx, r.Client, deploykey.Namespace, secret.Name)
-			if err != nil {
-				r.logger.Errorw("Failed to delete secret after GitHub key creation failure", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", err)
+			// Attempt to cleanup the secret, but preserve the original GitHub error for HandleError
+			if delErr := DeleteSecret(ctx, r.Client, deploykey.Namespace, secret.Name); delErr != nil {
+				r.logger.Errorw("Failed to delete secret after GitHub key creation failure", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", delErr)
 			}
 
-			return r.HandleError(deploykey, err)
+			return r.HandleError(deploykey, ghErr)
 		}
 
 		deploykey.Status.Created = true
@@ -352,8 +389,12 @@ func (r *DeployKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		deploykey.Status.GitHubKeyID = keyresponse.GetID()
 
 		if err := r.Status().Update(ctx, deploykey); err != nil {
-			r.logger.Errorw("Failed to update DeployKey status after creation", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", err)
-			return r.HandleError(deploykey, err)
+			if apierrors.IsConflict(err) {
+				r.logger.Debugw("Status update conflict after creation; skipping error handling", "name", deploykey.Name, "namespace", deploykey.Namespace)
+			} else {
+				r.logger.Errorw("Failed to update DeployKey status after creation", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", err)
+				return r.HandleError(deploykey, err)
+			}
 		}
 
 		r.logger.Infow("Deploy key created", "name", deploykey.Name, "namespace", deploykey.Namespace)
@@ -368,8 +409,12 @@ func (r *DeployKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			deploykey.Status.LastMessage = "Deploy key validated successfully"
 			deploykey.Status.LastReconcileTime = time.Now().Format(time.RFC3339)
 			if err := r.Status().Update(ctx, deploykey); err != nil {
-				r.logger.Errorw("Failed to update DeployKey status", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", err)
-				return r.HandleError(deploykey, err)
+				if apierrors.IsConflict(err) {
+					r.logger.Debugw("Status update conflict validating existing key; skipping error handling", "name", deploykey.Name, "namespace", deploykey.Namespace)
+				} else {
+					r.logger.Errorw("Failed to update DeployKey status", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", err)
+					return r.HandleError(deploykey, err)
+				}
 			}
 		}
 	}
