@@ -135,13 +135,13 @@ func (r *DeployKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return r.HandleError(deploykey, err)
 	}
 
-	if deploykey.Status.State == authv1alpha1.StateFailed {
+	if deploykey.Status.State == authv1alpha1.StateFailed && deploykey.DeletionTimestamp == nil {
 		r.logger.Infow("DeployKey is in failed state, not requeuing", "name", deploykey.Name, "namespace", deploykey.Namespace)
 		return ctrl.Result{}, nil
 	}
 
 	// Skip reconciliation for successful resources that were recently reconciled
-	if deploykey.Status.State == authv1alpha1.StateSuccess && deploykey.Status.Created {
+	if deploykey.Status.State == authv1alpha1.StateSuccess && deploykey.Status.Created && deploykey.DeletionTimestamp == nil {
 		if lastReconcile, err := time.Parse(time.RFC3339, deploykey.Status.LastReconcileTime); err == nil {
 			if time.Since(lastReconcile) < 5*time.Hour {
 				r.logger.Debugw("Skipping reconciliation for recently successful DeployKey", "name", deploykey.Name, "namespace", deploykey.Namespace, "lastReconcile", lastReconcile)
@@ -151,7 +151,7 @@ func (r *DeployKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	// Only update status if it's actually changing
-	if deploykey.Status.State != authv1alpha1.StateReconciling {
+	if deploykey.Status.State != authv1alpha1.StateReconciling && deploykey.DeletionTimestamp == nil {
 		deploykey.Status.State = authv1alpha1.StateReconciling
 		if err := r.Status().Update(ctx, deploykey); err != nil {
 			r.logger.Errorw("Failed to update DeployKey status to Reconciling", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", err)
