@@ -57,7 +57,7 @@ github.com ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAA
 `
 	MaxRetries          = 5
 	DefaultRequeueDelay = 10 * time.Minute // Default requeue for pending/reconciling
-	SuccessRequeueDelay = 1 * time.Hour    // Requeue for successful resources
+	SuccessRequeueDelay = 6 * time.Hour    // Requeue for successful resources
 	RateLimitBaseDelay  = 30 * time.Minute // Base delay for rate limit errors
 	MaxRequeueDelay     = 1 * time.Hour    // Maximum requeue delay
 )
@@ -137,6 +137,16 @@ func (r *DeployKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	if deploykey.Status.State == authv1alpha1.StateFailed {
 		r.logger.Infow("DeployKey is in failed state, not requeuing", "name", deploykey.Name, "namespace", deploykey.Namespace)
 		return ctrl.Result{}, nil
+	}
+
+	// Skip reconciliation for successful resources that were recently reconciled
+	if deploykey.Status.State == authv1alpha1.StateSuccess && deploykey.Status.Created {
+		if lastReconcile, err := time.Parse(time.RFC3339, deploykey.Status.LastReconcileTime); err == nil {
+			if time.Since(lastReconcile) < 5*time.Hour {
+				r.logger.Debugw("Skipping reconciliation for recently successful DeployKey", "name", deploykey.Name, "namespace", deploykey.Namespace, "lastReconcile", lastReconcile)
+				return ctrl.Result{RequeueAfter: SuccessRequeueDelay}, nil
+			}
+		}
 	}
 
 	// Only update status if it's actually changing
