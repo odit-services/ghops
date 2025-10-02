@@ -24,6 +24,8 @@ import (
 	"strings"
 	"time"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	corev1 "k8s.io/api/core/v1"
@@ -64,6 +66,12 @@ github.com ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAA
 )
 
 func (r *DeployKeyReconciler) HandleError(deploykey *authv1alpha1.DeployKey, err error) (ctrl.Result, error) {
+	// If we don't have a valid deploykey object (e.g. Get failed with NotFound),
+	// avoid trying to update status on an empty object — just return the error.
+	if deploykey == nil || deploykey.Name == "" {
+		r.logger.Errorw("Failed to reconcile deploykey but DeployKey object is nil or has no name, skipping status update", "error", err)
+		return ctrl.Result{}, err
+	}
 	r.logger.Errorw("Failed to reconcile deploykey", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", err)
 	if deploykey.Status.CurrentRetries >= MaxRetries {
 		deploykey.Status = authv1alpha1.DeployKeyStatus{
@@ -131,6 +139,11 @@ func (r *DeployKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	// Fetch the DeployKey instance
 	deploykey := &authv1alpha1.DeployKey{}
 	if err := r.Get(ctx, req.NamespacedName, deploykey); err != nil {
+		if apierrors.IsNotFound(err) {
+			// Resource no longer exists; nothing to do.
+			r.logger.Debugw("DeployKey resource not found; nothing to reconcile", "name", req.Name, "namespace", req.Namespace)
+			return ctrl.Result{}, nil
+		}
 		r.logger.Errorw("Failed to get DeployKey", "name", req.Name, "namespace", req.Namespace, "error", err)
 		return r.HandleError(deploykey, err)
 	}
@@ -222,8 +235,14 @@ func (r *DeployKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 		deploykey.Status.State = authv1alpha1.StateSuccess
 		if err := r.Status().Update(ctx, deploykey); err != nil {
-			r.logger.Errorw("Failed to update DeployKey status after deletion", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", err)
-			return r.HandleError(deploykey, err)
+			// If update fails due to conflict / precondition (object changed/UID mismatch),
+			// it's safe to assume the object is being removed or modified elsewhere — consider deletion successful.
+			if apierrors.IsConflict(err) || apierrors.IsNotFound(err) {
+				r.logger.Infow("DeployKey status update conflict or not found after deletion; treating as successful cleanup", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", err)
+			} else {
+				r.logger.Errorw("Failed to update DeployKey status after deletion", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", err)
+				return r.HandleError(deploykey, err)
+			}
 		}
 
 		r.logger.Infow("Deleted deploykey", "name", deploykey.Name, "namespace", deploykey.Namespace)
