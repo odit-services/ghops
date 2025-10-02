@@ -196,9 +196,22 @@ func (r *DeployKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			r.logger.Infow("No GitHub key ID found, skipping GitHub deletion", "name", deploykey.Name, "namespace", deploykey.Namespace)
 		}
 
-		if err := DeleteSecret(ctx, r.Client, deploykey.Namespace, fmt.Sprintf("%s-deploykey", deploykey.Name)); err != nil {
-			r.logger.Errorw("Failed to delete secret for deploy key", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", err)
-			return r.HandleError(deploykey, err)
+		// Check if the secret exists before attempting deletion
+		secret := &corev1.Secret{}
+		secretName := fmt.Sprintf("%s-deploykey", deploykey.Name)
+		err := r.Client.Get(ctx, client.ObjectKey{Namespace: deploykey.Namespace, Name: secretName}, secret)
+		if err != nil {
+			if client.IgnoreNotFound(err) == nil {
+				r.logger.Infow("Secret does not exist, skipping deletion", "name", secretName, "namespace", deploykey.Namespace)
+			} else {
+				r.logger.Errorw("Error checking for secret existence", "name", secretName, "namespace", deploykey.Namespace, "error", err)
+				return r.HandleError(deploykey, err)
+			}
+		} else {
+			if err := DeleteSecret(ctx, r.Client, deploykey.Namespace, secretName); err != nil {
+				r.logger.Errorw("Failed to delete secret for deploy key", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", err)
+				return r.HandleError(deploykey, err)
+			}
 		}
 
 		controllerutil.RemoveFinalizer(deploykey, "auth.github.odit.services/deploykey")
