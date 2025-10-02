@@ -30,7 +30,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/google/go-github/v74/github"
@@ -53,7 +55,11 @@ github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okW
 github.com ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCj7ndNxQowgcQnjshcLrqPEiiphnt+VTTvDP6mHBL9j1aNUkY4Ue1gvwnGLVlOhGeYrnZaMgRK6+PKCUXaDbC7qtbW8gIkhL7aGCsOr/C56SJMy/BCZfxd1nWzAOxSDPgVsmerOBYfNqltV9/hWCqBywINIR+5dIg6JTJ72pcEpEjcYgXkE2YEFXV1JHnsKgbLWNlhScqb2UmyRkQyytRLtL+38TGxkxCflmO+5Z8CSSNY7GidjMIZ7Q4zMjA2n1nGrlTDkzwDCsw+wqFPGQA179cnfGWOWRVruj16z6XyvxvjJwbz0wQZ75XK5tKSb7FNyeIEs4TT4jk+S4dhPeAUC5y+bDYirYgM4GC7uEnztnZyaVWQ7B381AK4Qdrwt51ZqExKbQpTUNn+EjqoTwvqNj4kqx5QUCI0ThS/YkOxJCXmPUWZbhjpCg56i+2aB6CmK2JGhn57K5mj0MNdBXA4/WnwH6XoPWJzK5Nyu2zB3nAZp+S5hpQs+p1vN1/wsjk=
 github.com ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBEmKSENjQEezOmxkZMy7opKgwFB9nkt5YRrYMjNuG5N87uRgg6CLrbo5wAdT/y6v0mKV0U2w0WZ2YB/++Tpockg=
 `
-	MaxRetries = 5
+	MaxRetries          = 5
+	DefaultRequeueDelay = 10 * time.Minute // Default requeue for pending/reconciling
+	SuccessRequeueDelay = 1 * time.Hour    // Requeue for successful resources
+	RateLimitBaseDelay  = 30 * time.Minute // Base delay for rate limit errors
+	MaxRequeueDelay     = 1 * time.Hour    // Maximum requeue delay
 )
 
 func (r *DeployKeyReconciler) HandleError(deploykey *authv1alpha1.DeployKey, err error) (ctrl.Result, error) {
@@ -93,11 +99,22 @@ func (r *DeployKeyReconciler) HandleError(deploykey *authv1alpha1.DeployKey, err
 		r.logger.Errorw("Max retries reached for deploykey", "name", deploykey.Name, "namespace", deploykey.Namespace)
 		return ctrl.Result{}, fmt.Errorf("max retries reached for deploykey %s/%s: %v", deploykey.Namespace, deploykey.Name, err)
 	}
-	var requeueDelay time.Duration = 5 * time.Minute
-	if strings.Contains(err.Error(), "rate limit exceeded") {
-		requeueDelay = 30 * time.Minute
+
+	// Implement exponential backoff with jitter
+	var requeueDelay time.Duration
+	if strings.Contains(err.Error(), "rate limit") || strings.Contains(err.Error(), "403") {
+		// For rate limiting, use longer delays
+		requeueDelay = time.Duration(RateLimitBaseDelay.Minutes()+float64(deploykey.Status.CurrentRetries*10)) * time.Minute
+		r.logger.Warnw("Rate limit detected, using extended backoff", "name", deploykey.Name, "namespace", deploykey.Namespace, "delay", requeueDelay)
+	} else {
+		// Exponential backoff for other errors: 5m, 10m, 20m, 40m...
+		requeueDelay = time.Duration(5*(1<<deploykey.Status.CurrentRetries)) * time.Minute
+		if requeueDelay > MaxRequeueDelay {
+			requeueDelay = MaxRequeueDelay // Cap at 1 hour
+		}
 	}
-	r.logger.Infow("Requeue deploykey", "name", deploykey.Name, "namespace", deploykey.Namespace)
+
+	r.logger.Infow("Requeue deploykey with backoff", "name", deploykey.Name, "namespace", deploykey.Namespace, "delay", requeueDelay, "retries", deploykey.Status.CurrentRetries)
 	return ctrl.Result{RequeueAfter: requeueDelay}, err
 }
 
@@ -118,14 +135,17 @@ func (r *DeployKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	if deploykey.Status.State == authv1alpha1.StateFailed {
-		r.logger.Infow("DeployKey is in failed state, requeuing", "name", deploykey.Name, "namespace", deploykey.Namespace)
+		r.logger.Infow("DeployKey is in failed state, not requeuing", "name", deploykey.Name, "namespace", deploykey.Namespace)
 		return ctrl.Result{}, nil
 	}
 
-	deploykey.Status.State = authv1alpha1.StateReconciling
-	if err := r.Status().Update(ctx, deploykey); err != nil {
-		r.logger.Errorw("Failed to update DeployKey status to Reconciling", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", err)
-		return r.HandleError(deploykey, err)
+	// Only update status if it's actually changing
+	if deploykey.Status.State != authv1alpha1.StateReconciling {
+		deploykey.Status.State = authv1alpha1.StateReconciling
+		if err := r.Status().Update(ctx, deploykey); err != nil {
+			r.logger.Errorw("Failed to update DeployKey status to Reconciling", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", err)
+			return r.HandleError(deploykey, err)
+		}
 	}
 
 	// Check if the DeployKey is marked for deletion
@@ -262,18 +282,29 @@ func (r *DeployKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		r.logger.Infow("Deploy key created", "name", deploykey.Name, "namespace", deploykey.Namespace)
 
 	} else {
-		r.logger.Infow("Deploy key already exists, doing nothing...", "name", deploykey.Name, "namespace", deploykey.Namespace)
-		deploykey.Status.LastAction = authv1alpha1.ActionUpdate
-		deploykey.Status.State = authv1alpha1.StateSuccess
-		if err := r.Status().Update(ctx, deploykey); err != nil {
-			r.logger.Errorw("Failed to update DeployKey status to Reconciling", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", err)
-			return r.HandleError(deploykey, err)
+		r.logger.Debugw("Deploy key already exists, validating...", "name", deploykey.Name, "namespace", deploykey.Namespace)
+
+		// Only update status if it's not already successful
+		if deploykey.Status.State != authv1alpha1.StateSuccess {
+			deploykey.Status.LastAction = authv1alpha1.ActionUpdate
+			deploykey.Status.State = authv1alpha1.StateSuccess
+			deploykey.Status.LastMessage = "Deploy key validated successfully"
+			deploykey.Status.LastReconcileTime = time.Now().Format(time.RFC3339)
+			if err := r.Status().Update(ctx, deploykey); err != nil {
+				r.logger.Errorw("Failed to update DeployKey status", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", err)
+				return r.HandleError(deploykey, err)
+			}
 		}
 	}
 
-	return ctrl.Result{
-		RequeueAfter: 5 * time.Minute, // Requeue after 5 minutes to check the status again
-	}, nil
+	// Only requeue if the resource is in a pending or reconciling state
+	// Successful resources don't need continuous reconciliation
+	if deploykey.Status.State == authv1alpha1.StatePending || deploykey.Status.State == authv1alpha1.StateReconciling {
+		return ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
+	}
+
+	// For successful resources, only requeue if there are changes or much longer intervals
+	return ctrl.Result{RequeueAfter: SuccessRequeueDelay}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -310,9 +341,42 @@ func (r *DeployKeyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	r.logger.Infow("Setting up DeployKeyReconciler with controller manager")
+
+	// Create a more restrictive predicate to reduce unnecessary reconciliations
+	statusChangePredicate := predicate.Funcs{
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			// Only reconcile if generation changed (spec updates) or if status indicates failure/pending
+			if e.ObjectOld.GetGeneration() != e.ObjectNew.GetGeneration() {
+				return true
+			}
+
+			// Check if the resource is in a state that needs reconciliation
+			newDK, ok := e.ObjectNew.(*authv1alpha1.DeployKey)
+			if !ok {
+				return false
+			}
+
+			// Only reconcile if not in success state or if it's a new resource
+			return newDK.Status.State != authv1alpha1.StateSuccess || !newDK.Status.Created
+		},
+		CreateFunc: func(e event.CreateEvent) bool {
+			return true // Always reconcile new resources
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			return true // Always handle deletions
+		},
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&authv1alpha1.DeployKey{}).
-		WithEventFilter(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{})).
+		WithEventFilter(predicate.Or(
+			predicate.GenerationChangedPredicate{},
+			predicate.LabelChangedPredicate{},
+			statusChangePredicate,
+		)).
+		WithOptions(controller.Options{
+			MaxConcurrentReconciles: 1, // Limit to 1 concurrent reconciliation to reduce API pressure
+		}).
 		Named("deploykey").
 		Complete(r)
 }
