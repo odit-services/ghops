@@ -168,10 +168,31 @@ func (r *DeployKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			return r.HandleError(deploykey, err)
 		}
 
-		_, err := r.ghclient.Repositories.DeleteKey(ctx, deploykey.Spec.Owner, deploykey.Spec.Repository, deploykey.Status.GitHubKeyID)
+		// Only attempt to delete from GitHub if we have a valid key ID
+		if deploykey.Status.GitHubKeyID > 0 {
+			resp, err := r.ghclient.Repositories.DeleteKey(ctx, deploykey.Spec.Owner, deploykey.Spec.Repository, deploykey.Status.GitHubKeyID)
 		if err != nil {
+				// Log rate limit information if available
+				if resp != nil && resp.Header != nil {
+					if remaining := resp.Header.Get("X-RateLimit-Remaining"); remaining != "" {
+						if reset := resp.Header.Get("X-RateLimit-Reset"); reset != "" {
+							if resetTime, parseErr := strconv.ParseInt(reset, 10, 64); parseErr == nil {
+								resetTimeFormatted := time.Unix(resetTime, 0).Format(time.RFC3339)
+								r.logger.Warnw("GitHub API rate limit info during deletion", "remaining", remaining, "resetTime", resetTimeFormatted)
+							}
+						}
+					}
+				}
+
+				// Log the error but don't fail the deletion if the key doesn't exist on GitHub
+				if !strings.Contains(err.Error(), "404") && !strings.Contains(err.Error(), "Not Found") {
 			r.logger.Errorw("Failed to delete deploy key from GitHub", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", err)
 			return r.HandleError(deploykey, err)
+				}
+				r.logger.Warnw("Deploy key not found on GitHub, continuing with cleanup", "name", deploykey.Name, "namespace", deploykey.Namespace)
+			}
+		} else {
+			r.logger.Infow("No GitHub key ID found, skipping GitHub deletion", "name", deploykey.Name, "namespace", deploykey.Namespace)
 		}
 
 		if err := DeleteSecret(ctx, r.Client, deploykey.Namespace, fmt.Sprintf("%s-deploykey", deploykey.Name)); err != nil {
@@ -266,9 +287,22 @@ func (r *DeployKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			ReadOnly: &readOnly,
 		}
 
-		keyresponse, _, err := r.ghclient.Repositories.CreateKey(ctx, deploykey.Spec.Owner, deploykey.Spec.Repository, keyrequest)
+		keyresponse, resp, err := r.ghclient.Repositories.CreateKey(ctx, deploykey.Spec.Owner, deploykey.Spec.Repository, keyrequest)
 		if err != nil {
 			r.logger.Errorw("Failed to create deploy key on GitHub", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", err)
+
+			// Log rate limit information if available
+			if resp != nil && resp.Header != nil {
+				if remaining := resp.Header.Get("X-RateLimit-Remaining"); remaining != "" {
+					if reset := resp.Header.Get("X-RateLimit-Reset"); reset != "" {
+						if resetTime, parseErr := strconv.ParseInt(reset, 10, 64); parseErr == nil {
+							resetTimeFormatted := time.Unix(resetTime, 0).Format(time.RFC3339)
+							r.logger.Warnw("GitHub API rate limit info", "remaining", remaining, "resetTime", resetTimeFormatted)
+						}
+					}
+				}
+			}
+
 			err = DeleteSecret(ctx, r.Client, deploykey.Namespace, secret.Name)
 			if err != nil {
 				r.logger.Errorw("Failed to delete secret after GitHub key creation failure", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", err)
