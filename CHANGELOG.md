@@ -5,6 +5,7 @@ Versions are based on [Semantic Versioning](http://semver.org/), and the changel
 
 ## Version History
 
+* [v0.4.0](#v0.4.0)
 * [v0.3.3](#v0.3.3)
 * [v0.3.2](#v0.3.2)
 * [v0.3.1](#v0.3.1)
@@ -14,6 +15,37 @@ Versions are based on [Semantic Versioning](http://semver.org/), and the changel
 * [v0.1.0](#v0.1.0)
 
 ## Changes
+
+<a name="v0.4.0"></a>
+### [v0.4.0](https://github.com/odit-services/s3ops/compare/v0.3.3...v0.4.0)
+
+> 2025-10-02
+
+#### 🏡 Chore
+
+* change file permissions for kustomization.yaml
+* update changelog
+* **deploy:** update deployment manifests
+* **kustomization:** change file permissions from executable to non-executable
+
+#### 🩹 Fixes
+
+* **controller:** enhance error handling and retry logic in DeployKey reconciler
+* **controller:** handle nil DeployKey object in error handling and log not found cases
+* **controller:** check for secret existence before deletion in DeployKey reconciler
+* **controller:** reconcile deletion for failed keys
+* **controller:** add missing strconv import in deploykey_controller.go
+* **controller:** improve GitHub key deletion and creation error handling with rate limit logging
+* **controller:** extend success requeue delay and skip recent reconciliations for successful DeployKeys
+
+#### 💅 Refactors
+
+* **controller:** enhance deploykey reconciliation logic with backoff and status checks
+
+#### 🎨 Styles
+
+* **controller:** formatting
+
 
 <a name="v0.3.3"></a>
 ### [v0.3.3](https://github.com/odit-services/s3ops/compare/v0.3.2...v0.3.3)
