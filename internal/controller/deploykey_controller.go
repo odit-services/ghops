@@ -172,7 +172,7 @@ func (r *DeployKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		// Only attempt to delete from GitHub if we have a valid key ID
 		if deploykey.Status.GitHubKeyID > 0 {
 			resp, err := r.ghclient.Repositories.DeleteKey(ctx, deploykey.Spec.Owner, deploykey.Spec.Repository, deploykey.Status.GitHubKeyID)
-		if err != nil {
+			if err != nil {
 				// Log rate limit information if available
 				if resp != nil && resp.Header != nil {
 					if remaining := resp.Header.Get("X-RateLimit-Remaining"); remaining != "" {
@@ -187,8 +187,8 @@ func (r *DeployKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 				// Log the error but don't fail the deletion if the key doesn't exist on GitHub
 				if !strings.Contains(err.Error(), "404") && !strings.Contains(err.Error(), "Not Found") {
-			r.logger.Errorw("Failed to delete deploy key from GitHub", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", err)
-			return r.HandleError(deploykey, err)
+					r.logger.Errorw("Failed to delete deploy key from GitHub", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", err)
+					return r.HandleError(deploykey, err)
 				}
 				r.logger.Warnw("Deploy key not found on GitHub, continuing with cleanup", "name", deploykey.Name, "namespace", deploykey.Namespace)
 			}
