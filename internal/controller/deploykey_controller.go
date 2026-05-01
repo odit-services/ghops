@@ -153,6 +153,7 @@ func (r *DeployKeyReconciler) HandleError(deploykey *authv1alpha1.DeployKey, err
 // +kubebuilder:rbac:groups=auth.github.odit.services,resources=deploykeys/finalizers,verbs=update
 // +kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch;create;update;patch;delete
 
+// nolint:gocyclo
 func (r *DeployKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 
 	r.logger.Infow("Reconciling DeployKey", "name", req.Name, "namespace", req.Namespace)
@@ -241,7 +242,7 @@ func (r *DeployKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		// Check if the secret exists before attempting deletion
 		secret := &corev1.Secret{}
 		secretName := fmt.Sprintf("%s-deploykey", deploykey.Name)
-		err := r.Client.Get(ctx, client.ObjectKey{Namespace: deploykey.Namespace, Name: secretName}, secret)
+		err := r.Get(ctx, client.ObjectKey{Namespace: deploykey.Namespace, Name: secretName}, secret)
 		if err != nil {
 			if client.IgnoreNotFound(err) == nil {
 				r.logger.Infow("Secret does not exist, skipping deletion", "name", secretName, "namespace", deploykey.Namespace)
