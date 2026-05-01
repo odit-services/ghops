@@ -6,18 +6,19 @@ on:
 
 jobs:
   lint:
-    name: Lint go code
+    name: Lint Go code
     runs-on: actions-runner-kube-niggl
     steps:
-      - name: Clone the code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Go
+      - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+          cache: true
 
-      - name: Run linter
-        uses: golangci/golangci-lint-action@v8
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v7
         with:
-          version: v2.4.0
+          version: latest
