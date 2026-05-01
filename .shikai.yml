@@ -1,0 +1,3 @@
+hooks:
+  after-changelog:
+    - VERSION="${SHIKAI_TAG#v}" make build-yaml

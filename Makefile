@@ -201,6 +201,13 @@ build-installer: manifests generate kustomize ## Generate a consolidated YAML wi
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 	$(KUSTOMIZE) build config/default > dist/install.yaml
 
+.PHONY: build-yaml
+build-yaml: kustomize ## Regenerate deployment YAML manifests before a release.
+	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
+	$(KUSTOMIZE) build config/default > config/deployment/full.yaml
+	$(KUSTOMIZE) build config/crd/ > config/deployment/crds.yaml
+	git add config/deployment/full.yaml config/deployment/crds.yaml config/manager/kustomization.yaml
+
 ##@ Deployment
 
 ifndef ignore-not-found
@@ -238,7 +245,7 @@ KUSTOMIZE ?= $(LOCALBIN)/kustomize
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
 GOLANGCI_LINT = $(LOCALBIN)/golangci-lint
-GITCHGLOG ?= $(LOCALBIN)/git-chglog
+SHIKAI ?= shikai
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.6.0
@@ -248,7 +255,6 @@ ENVTEST_VERSION ?= $(shell go list -m -f "{{ .Version }}" sigs.k8s.io/controller
 #ENVTEST_K8S_VERSION is the version of Kubernetes to use for setting up ENVTEST binaries (i.e. 1.31)
 ENVTEST_K8S_VERSION ?= $(shell go list -m -f "{{ .Version }}" k8s.io/api | awk -F'[v.]' '{printf "1.%d", $$3}')
 GOLANGCI_LINT_VERSION ?= v2.1.0
-GITCHGLOG_VERSION ?= v0.15.4
 
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary.
@@ -277,11 +283,6 @@ $(ENVTEST): $(LOCALBIN)
 golangci-lint: $(GOLANGCI_LINT) ## Download golangci-lint locally if necessary.
 $(GOLANGCI_LINT): $(LOCALBIN)
 	$(call go-install-tool,$(GOLANGCI_LINT),github.com/golangci/golangci-lint/v2/cmd/golangci-lint,$(GOLANGCI_LINT_VERSION))
-
-.PHONY: git-chglog
-git-chglog: $(GITCHGLOG) ## Download git-chglog locally if necessary.
-$(GITCHGLOG): $(LOCALBIN)
-	$(call go-install-tool,$(GITCHGLOG),github.com/git-chglog/git-chglog/cmd/git-chglog,$(GITCHGLOG_VERSION))
 
 # go-install-tool will 'go install' any package with custom target and name of binary, if it doesn't exist
 # $1 - target path with name of binary
@@ -372,32 +373,6 @@ catalog-build: opm ## Build a catalog image.
 catalog-push: ## Push a catalog image.
 	$(MAKE) docker-push IMG=$(CATALOG_IMG)
 
-.PHONY: changelog
-changelog: git-chglog ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
-	$(GITCHGLOG) -o CHANGELOG.md
-	git add CHANGELOG.md
-	git commit -m "chore: update changelog"
-
-.PHONY: releasebody
-releasebody: git-chglog ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
-	$(GITCHGLOG) -t .chglog/RELEASE.tpl.md $(TAG)
-
-.PHONY: tag
-tag: ## Tag the current commit with the version number.
-	git tag -a v$(VERSION) -m "Release v$(VERSION)"
-
-.PHONY: build-yaml
-build-yaml: kustomize
-	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
-	$(KUSTOMIZE) build config/default > config/deployment/full.yaml
-	$(KUSTOMIZE) build config/crd/ > config/deployment/crds.yaml
-	git add config/deployment/full.yaml config/deployment/crds.yaml config/manager/kustomization.yaml
-	git commit -m "chore(deploy): update deployment manifests"
-
-.PHONY: git-push
-git-push:
-	git push --follow-tags
-
 .PHONY: release
-release: build-yaml tag changelog git-push  ## Generate a changelog and tag the current commit with the version number.
-# 	make docker-build-multiarch IMG=$(IMG)
+release: ## Run the shikai release flow.
+	$(SHIKAI) --push
