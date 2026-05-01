@@ -6,6 +6,7 @@ require (
 	github.com/google/go-github/v74 v74.0.0
 	github.com/onsi/ginkgo/v2 v2.28.3
 	github.com/onsi/gomega v1.40.0
+	go.uber.org/mock v0.6.0
 	go.uber.org/zap v1.28.0
 	golang.org/x/crypto v0.50.0
 	k8s.io/api v0.36.0

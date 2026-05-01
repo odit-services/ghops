@@ -48,7 +48,7 @@ type DeployKeyReconciler struct {
 	client.Client
 	Scheme     *runtime.Scheme
 	logger     *zap.SugaredLogger
-	ghclient   *github.Client
+	gitClient   GitHubClient
 	sshservice services.SSHService
 }
 
@@ -213,7 +213,7 @@ func (r *DeployKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 		// Only attempt to delete from GitHub if we have a valid key ID
 		if deploykey.Status.GitHubKeyID > 0 {
-			resp, err := r.ghclient.Repositories.DeleteKey(ctx, deploykey.Spec.Owner, deploykey.Spec.Repository, deploykey.Status.GitHubKeyID)
+			resp, err := r.gitClient.DeleteKey(ctx, deploykey.Spec.Owner, deploykey.Spec.Repository, deploykey.Status.GitHubKeyID)
 			if err != nil {
 				// Log rate limit information if available
 				if resp != nil && resp.Header != nil {
@@ -357,7 +357,7 @@ func (r *DeployKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			ReadOnly: &readOnly,
 		}
 
-		keyresponse, resp, ghErr := r.ghclient.Repositories.CreateKey(ctx, deploykey.Spec.Owner, deploykey.Spec.Repository, keyrequest)
+		keyresponse, resp, ghErr := r.gitClient.CreateKey(ctx, deploykey.Spec.Owner, deploykey.Spec.Repository, keyrequest)
 		if ghErr != nil {
 			r.logger.Errorw("Failed to create deploy key on GitHub", "name", deploykey.Name, "namespace", deploykey.Namespace, "error", ghErr)
 
@@ -455,7 +455,7 @@ func (r *DeployKeyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return fmt.Errorf("GITHUB_TOKEN environment variable is not set")
 	}
 
-	r.ghclient = github.NewClient(nil).WithAuthToken(ghToken)
+	r.gitClient = NewGitHubClient(github.NewClient(nil).WithAuthToken(ghToken))
 	r.logger.Infow("DeployKeyReconciler initialized", "logLevel", logLevel)
 
 	r.sshservice = &services.DefaultSSHService{
