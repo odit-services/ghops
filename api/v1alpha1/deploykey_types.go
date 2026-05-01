@@ -102,7 +102,3 @@ type DeployKeyList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []DeployKey `json:"items"`
 }
-
-func init() {
-	SchemeBuilder.Register(&DeployKey{}, &DeployKeyList{})
-}
