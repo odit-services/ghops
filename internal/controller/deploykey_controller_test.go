@@ -18,9 +18,11 @@ package controller
 
 import (
 	"context"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"go.uber.org/zap"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -51,9 +53,23 @@ var _ = Describe("DeployKey Controller", func() {
 						Name:      resourceName,
 						Namespace: "default",
 					},
-					// TODO(user): Specify other spec details if needed.
+					Spec: authv1alpha1.DeployKeySpec{
+						Owner:      "odit-services",
+						Repository: "ghops",
+					},
 				}
 				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
+
+				// Mark the resource as already successful so reconcile stays local and
+				// does not try to create external GitHub deploy keys in this unit test.
+				resource.Status = authv1alpha1.DeployKeyStatus{
+					Created: true,
+					CrStatus: authv1alpha1.CrStatus{
+						State:             authv1alpha1.StateSuccess,
+						LastReconcileTime: time.Now().Format(time.RFC3339),
+					},
+				}
+				Expect(k8sClient.Status().Update(ctx, resource)).To(Succeed())
 			}
 		})
 
@@ -71,6 +87,7 @@ var _ = Describe("DeployKey Controller", func() {
 			controllerReconciler := &DeployKeyReconciler{
 				Client: k8sClient,
 				Scheme: k8sClient.Scheme(),
+				logger: zap.NewNop().Sugar(),
 			}
 
 			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
