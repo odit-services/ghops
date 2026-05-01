@@ -48,7 +48,7 @@ type DeployKeyReconciler struct {
 	client.Client
 	Scheme     *runtime.Scheme
 	logger     *zap.SugaredLogger
-	gitClient   GitHubClient
+	gitClient  GitHubClient
 	sshservice services.SSHService
 }
 

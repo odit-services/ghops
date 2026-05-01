@@ -21,9 +21,9 @@ import (
 	"errors"
 	"time"
 
+	"github.com/google/go-github/v74/github"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/google/go-github/v74/github"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
@@ -45,11 +45,11 @@ const (
 
 var _ = Describe("DeployKey Controller", func() {
 	var (
-		ctrl        *gomock.Controller
-		mockGitHub  *mocks.MockGitHubClient
-		mockSSH     *mocks.MockSSHService
-		reconciler  *DeployKeyReconciler
-		testCtx     context.Context
+		ctrl       *gomock.Controller
+		mockGitHub *mocks.MockGitHubClient
+		mockSSH    *mocks.MockSSHService
+		reconciler *DeployKeyReconciler
+		testCtx    context.Context
 	)
 
 	BeforeEach(func() {
@@ -93,7 +93,7 @@ var _ = Describe("DeployKey Controller", func() {
 			dk.Status = *status
 		}
 		ExpectWithOffset(1, k8sClient.Create(testCtx, dk)).To(Succeed())
-		
+
 		if status != nil {
 			// Get the latest resource and update status
 			freshDK := &authv1alpha1.DeployKey{}
@@ -447,13 +447,13 @@ var _ = Describe("DeployKey Controller", func() {
 				// Note: The object may be deleted after finalizer removal (expected behavior)
 				// What matters is that the reconcile succeeded
 				Expect(err).NotTo(HaveOccurred())
-				
+
 				// The object should either be deleted (no finalizer = garbage collected)
 				// or have the finalizer removed. Check both cases.
 				dkList := &authv1alpha1.DeployKeyList{}
 				err = k8sClient.List(testCtx, dkList, client.InNamespace(testNamespace))
 				Expect(err).NotTo(HaveOccurred())
-				
+
 				for _, d := range dkList.Items {
 					if d.Name == "delete-with-github-id" {
 						// If it still exists, finalizer should be removed
