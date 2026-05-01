@@ -246,7 +246,7 @@ CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
 GOLANGCI_LINT = $(LOCALBIN)/golangci-lint
 SHIKAI ?= $(LOCALBIN)/shikai
-SHIKAI_RELEASE ?= $(LOCALBIN)/release
+SHIKAI_RELEASE ?= $(LOCALBIN)/shikai
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.6.0
@@ -256,7 +256,7 @@ ENVTEST_VERSION ?= $(shell go list -m -f "{{ .Version }}" sigs.k8s.io/controller
 #ENVTEST_K8S_VERSION is the version of Kubernetes to use for setting up ENVTEST binaries (i.e. 1.31)
 ENVTEST_K8S_VERSION ?= $(shell go list -m -f "{{ .Version }}" k8s.io/api | awk -F'[v.]' '{printf "1.%d", $$3}')
 GOLANGCI_LINT_VERSION ?= v2.1.0
-SHIKAI_VERSION ?= v1.0.0
+SHIKAI_VERSION ?= v1.0.1
 
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary.
@@ -289,7 +289,7 @@ $(GOLANGCI_LINT): $(LOCALBIN)
 .PHONY: shikai
 shikai: $(SHIKAI) ## Download shikai locally if necessary.
 $(SHIKAI): $(LOCALBIN)
-	$(call go-install-tool,$(SHIKAI_RELEASE),github.com/shikai/release,$(SHIKAI_VERSION))
+	$(call go-install-tool,$(SHIKAI_RELEASE),github.com/nicolaiort/shikai,$(SHIKAI_VERSION))
 	ln -sf $(SHIKAI_RELEASE)-$(SHIKAI_VERSION) $(SHIKAI)
 
 # go-install-tool will 'go install' any package with custom target and name of binary, if it doesn't exist
