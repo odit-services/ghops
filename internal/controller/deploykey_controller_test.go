@@ -38,9 +38,16 @@ import (
 )
 
 const (
-	testNamespace = "default"
-	finalizerName = "auth.github.odit.services/deploykey"
-	secretSuffix  = "-deploykey"
+	testNamespace         = "default"
+	testOwner             = "test-owner"
+	testRepo              = "test-repo"
+	finalizerName         = "auth.github.odit.services/deploykey"
+	secretSuffix          = "-deploykey"
+	testED25519PrivateKey = "-----BEGIN PRIVATE KEY-----\nED25519KEY\n-----END PRIVATE KEY-----"
+	testED25519PublicKey  = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAtest"
+	testRSAPrivateKey     = "-----BEGIN RSA PRIVATE KEY-----\nRSAKEY\n-----END RSA PRIVATE KEY-----"
+	testRSAPublicKey      = "ssh-rsa AAAAB3NzaC1yc2EAAAtest"
+	testFailPrivateKey    = "-----BEGIN PRIVATE KEY-----\nKEY\n-----END PRIVATE KEY-----"
 )
 
 var _ = Describe("DeployKey Controller", func() {
@@ -125,7 +132,7 @@ var _ = Describe("DeployKey Controller", func() {
 
 	// Helper to make a GitHub Key response
 	makeGitHubKey := func(id int64) *github.Key {
-		return &github.Key{ID: github.Int64(id)}
+		return &github.Key{ID: github.Ptr(id)}
 	}
 
 	// ==========================================================================
@@ -144,8 +151,8 @@ var _ = Describe("DeployKey Controller", func() {
 		Context("When resource is in Failed state without DeletionTimestamp", func() {
 			It("should skip reconciliation and return empty result", func() {
 				spec := authv1alpha1.DeployKeySpec{
-					Owner:      "test-owner",
-					Repository: "test-repo",
+					Owner:      testOwner,
+					Repository: testRepo,
 				}
 				status := &authv1alpha1.DeployKeyStatus{
 					CrStatus: authv1alpha1.CrStatus{
@@ -171,8 +178,8 @@ var _ = Describe("DeployKey Controller", func() {
 		Context("When resource was recently successful", func() {
 			It("should return RequeueAfter without additional work", func() {
 				spec := authv1alpha1.DeployKeySpec{
-					Owner:      "test-owner",
-					Repository: "test-repo",
+					Owner:      testOwner,
+					Repository: testRepo,
 				}
 				status := &authv1alpha1.DeployKeyStatus{
 					Created: true,
@@ -200,19 +207,19 @@ var _ = Describe("DeployKey Controller", func() {
 		Context("When creating with ED25519 key type", func() {
 			It("should generate keys, create secret, and register with GitHub", func() {
 				spec := authv1alpha1.DeployKeySpec{
-					Owner:      "test-owner",
-					Repository: "test-repo",
+					Owner:      testOwner,
+					Repository: testRepo,
 					KeyType:    authv1alpha1.ED25519,
 					Title:      "Test ED25519 Key",
 				}
 				key := createDeployKey("ed25519-create", spec, nil, nil)
 
-				privKey := "-----BEGIN PRIVATE KEY-----\nED25519KEY\n-----END PRIVATE KEY-----"
-				pubKey := "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAtest"
+				privKey := testED25519PrivateKey
+				pubKey := testED25519PublicKey
 
 				gomock.InOrder(
 					mockSSH.EXPECT().GenerateED25519KeyPair().Return(privKey, pubKey, nil),
-					mockGitHub.EXPECT().CreateKey(testCtx, "test-owner", "test-repo", gomock.Any()).Return(makeGitHubKey(12345), nil, nil),
+					mockGitHub.EXPECT().CreateKey(testCtx, testOwner, testRepo, gomock.Any()).Return(makeGitHubKey(12345), nil, nil),
 				)
 
 				result, err := reconcileKey(key)
@@ -232,19 +239,19 @@ var _ = Describe("DeployKey Controller", func() {
 		Context("When creating with RSA key type", func() {
 			It("should generate RSA keys, create secret, and register with GitHub", func() {
 				spec := authv1alpha1.DeployKeySpec{
-					Owner:      "test-owner",
-					Repository: "test-repo",
+					Owner:      testOwner,
+					Repository: testRepo,
 					KeyType:    authv1alpha1.RSA,
 					Title:      "Test RSA Key",
 				}
 				key := createDeployKey("rsa-create", spec, nil, nil)
 
-				privKey := "-----BEGIN RSA PRIVATE KEY-----\nRSAKEY\n-----END RSA PRIVATE KEY-----"
-				pubKey := "ssh-rsa AAAAB3NzaC1yc2EAAAtest"
+				privKey := testRSAPrivateKey
+				pubKey := testRSAPublicKey
 
 				gomock.InOrder(
 					mockSSH.EXPECT().GenerateRSAKeyPair().Return(privKey, pubKey, nil),
-					mockGitHub.EXPECT().CreateKey(testCtx, "test-owner", "test-repo", gomock.Any()).Return(makeGitHubKey(67890), nil, nil),
+					mockGitHub.EXPECT().CreateKey(testCtx, testOwner, testRepo, gomock.Any()).Return(makeGitHubKey(67890), nil, nil),
 				)
 
 				result, err := reconcileKey(key)
@@ -266,8 +273,8 @@ var _ = Describe("DeployKey Controller", func() {
 		Context("When SSH key generation fails", func() {
 			It("should call HandleError and status should not be Success", func() {
 				spec := authv1alpha1.DeployKeySpec{
-					Owner:      "test-owner",
-					Repository: "test-repo",
+					Owner:      testOwner,
+					Repository: testRepo,
 					KeyType:    authv1alpha1.ED25519,
 					Title:      "Failing Key",
 				}
@@ -285,19 +292,19 @@ var _ = Describe("DeployKey Controller", func() {
 		Context("When GitHub API fails", func() {
 			It("should call HandleError and status should not be Success", func() {
 				spec := authv1alpha1.DeployKeySpec{
-					Owner:      "test-owner",
-					Repository: "test-repo",
+					Owner:      testOwner,
+					Repository: testRepo,
 					KeyType:    authv1alpha1.ED25519,
 					Title:      "GitHub Fail Key",
 				}
 				key := createDeployKey("github-fail", spec, nil, nil)
 
-				privKey := "-----BEGIN PRIVATE KEY-----\nKEY\n-----END PRIVATE KEY-----"
-				pubKey := "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAtest"
+				privKey := testFailPrivateKey
+				pubKey := testED25519PublicKey
 
 				gomock.InOrder(
 					mockSSH.EXPECT().GenerateED25519KeyPair().Return(privKey, pubKey, nil),
-					mockGitHub.EXPECT().CreateKey(testCtx, "test-owner", "test-repo", gomock.Any()).Return(nil, nil, errors.New("GitHub API error")),
+					mockGitHub.EXPECT().CreateKey(testCtx, testOwner, testRepo, gomock.Any()).Return(nil, nil, errors.New("GitHub API error")),
 				)
 
 				_, _ = reconcileKey(key)
@@ -315,8 +322,8 @@ var _ = Describe("DeployKey Controller", func() {
 		Context("When key already exists with State=Reconciling", func() {
 			It("should validate and update status to Success", func() {
 				spec := authv1alpha1.DeployKeySpec{
-					Owner:      "test-owner",
-					Repository: "test-repo",
+					Owner:      testOwner,
+					Repository: testRepo,
 				}
 				status := &authv1alpha1.DeployKeyStatus{
 					Created:     true,
@@ -340,8 +347,8 @@ var _ = Describe("DeployKey Controller", func() {
 		Context("When key already exists with State=Pending", func() {
 			It("should validate and update status to Success", func() {
 				spec := authv1alpha1.DeployKeySpec{
-					Owner:      "test-owner",
-					Repository: "test-repo",
+					Owner:      testOwner,
+					Repository: testRepo,
 				}
 				status := &authv1alpha1.DeployKeyStatus{
 					Created:     true,
@@ -368,8 +375,8 @@ var _ = Describe("DeployKey Controller", func() {
 		Context("When DeletionTimestamp is set with no GitHubKeyID", func() {
 			It("should skip GitHub deletion and remove finalizer", func() {
 				spec := authv1alpha1.DeployKeySpec{
-					Owner:      "test-owner",
-					Repository: "test-repo",
+					Owner:      testOwner,
+					Repository: testRepo,
 				}
 				status := &authv1alpha1.DeployKeyStatus{
 					Created:     true,
@@ -419,8 +426,8 @@ var _ = Describe("DeployKey Controller", func() {
 		Context("When DeletionTimestamp is set with GitHubKeyID", func() {
 			It("should delete from GitHub and remove finalizer", func() {
 				spec := authv1alpha1.DeployKeySpec{
-					Owner:      "test-owner",
-					Repository: "test-repo",
+					Owner:      testOwner,
+					Repository: testRepo,
 				}
 				status := &authv1alpha1.DeployKeyStatus{
 					Created:     true,
@@ -441,7 +448,7 @@ var _ = Describe("DeployKey Controller", func() {
 				dkToDelete := getDeployKey(key)
 				Expect(k8sClient.Delete(testCtx, dkToDelete)).To(Succeed())
 
-				mockGitHub.EXPECT().DeleteKey(testCtx, "test-owner", "test-repo", int64(123)).Return(nil, nil)
+				mockGitHub.EXPECT().DeleteKey(testCtx, testOwner, testRepo, int64(123)).Return(nil, nil)
 
 				_, err := reconcileKey(key)
 				// Note: The object may be deleted after finalizer removal (expected behavior)
@@ -467,8 +474,8 @@ var _ = Describe("DeployKey Controller", func() {
 		Context("When DeletionTimestamp is set with existing secret", func() {
 			It("should delete the secret", func() {
 				spec := authv1alpha1.DeployKeySpec{
-					Owner:      "test-owner",
-					Repository: "test-repo",
+					Owner:      testOwner,
+					Repository: testRepo,
 				}
 				status := &authv1alpha1.DeployKeyStatus{
 					Created:     true,
@@ -518,18 +525,18 @@ var _ = Describe("DeployKey Controller", func() {
 		Context("When resource has no finalizer", func() {
 			It("should add finalizer and proceed with creation", func() {
 				spec := authv1alpha1.DeployKeySpec{
-					Owner:      "test-owner",
-					Repository: "test-repo",
+					Owner:      testOwner,
+					Repository: testRepo,
 					KeyType:    authv1alpha1.ED25519,
 				}
 				key := createDeployKey("add-finalizer", spec, nil, nil)
 
-				privKey := "-----BEGIN PRIVATE KEY-----\nKEY\n-----END PRIVATE KEY-----"
-				pubKey := "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAtest"
+				privKey := testFailPrivateKey
+				pubKey := testED25519PublicKey
 
 				gomock.InOrder(
 					mockSSH.EXPECT().GenerateED25519KeyPair().Return(privKey, pubKey, nil),
-					mockGitHub.EXPECT().CreateKey(testCtx, "test-owner", "test-repo", gomock.Any()).Return(makeGitHubKey(111), nil, nil),
+					mockGitHub.EXPECT().CreateKey(testCtx, testOwner, testRepo, gomock.Any()).Return(makeGitHubKey(111), nil, nil),
 				)
 
 				_, err := reconcileKey(key)
@@ -549,18 +556,18 @@ var _ = Describe("DeployKey Controller", func() {
 		Context("When GitHub API returns non-rate-limit error", func() {
 			It("should increment retry count and return requeue with backoff", func() {
 				spec := authv1alpha1.DeployKeySpec{
-					Owner:      "test-owner",
-					Repository: "test-repo",
+					Owner:      testOwner,
+					Repository: testRepo,
 					KeyType:    authv1alpha1.ED25519,
 				}
 				key := createDeployKey("retry-test", spec, nil, nil)
 
-				privKey := "-----BEGIN PRIVATE KEY-----\nKEY\n-----END PRIVATE KEY-----"
-				pubKey := "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAtest"
+				privKey := testFailPrivateKey
+				pubKey := testED25519PublicKey
 
 				gomock.InOrder(
 					mockSSH.EXPECT().GenerateED25519KeyPair().Return(privKey, pubKey, nil),
-					mockGitHub.EXPECT().CreateKey(testCtx, "test-owner", "test-repo", gomock.Any()).Return(nil, nil, errors.New("connection refused")),
+					mockGitHub.EXPECT().CreateKey(testCtx, testOwner, testRepo, gomock.Any()).Return(nil, nil, errors.New("connection refused")),
 				)
 
 				result, err := reconcileKey(key)
@@ -575,18 +582,18 @@ var _ = Describe("DeployKey Controller", func() {
 		Context("When GitHub API returns rate limit error", func() {
 			It("should use longer backoff without incrementing retry count", func() {
 				spec := authv1alpha1.DeployKeySpec{
-					Owner:      "test-owner",
-					Repository: "test-repo",
+					Owner:      testOwner,
+					Repository: testRepo,
 					KeyType:    authv1alpha1.ED25519,
 				}
 				key := createDeployKey("rate-limit-test", spec, nil, nil)
 
-				privKey := "-----BEGIN PRIVATE KEY-----\nKEY\n-----END PRIVATE KEY-----"
-				pubKey := "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAtest"
+				privKey := testFailPrivateKey
+				pubKey := testED25519PublicKey
 
 				gomock.InOrder(
 					mockSSH.EXPECT().GenerateED25519KeyPair().Return(privKey, pubKey, nil),
-					mockGitHub.EXPECT().CreateKey(testCtx, "test-owner", "test-repo", gomock.Any()).Return(nil, nil, errors.New("403 rate limit exceeded")),
+					mockGitHub.EXPECT().CreateKey(testCtx, testOwner, testRepo, gomock.Any()).Return(nil, nil, errors.New("403 rate limit exceeded")),
 				)
 
 				result, err := reconcileKey(key)
@@ -600,8 +607,8 @@ var _ = Describe("DeployKey Controller", func() {
 		Context("When max retries are exceeded", func() {
 			It("should return error and set State to Failed", func() {
 				spec := authv1alpha1.DeployKeySpec{
-					Owner:      "test-owner",
-					Repository: "test-repo",
+					Owner:      testOwner,
+					Repository: testRepo,
 					KeyType:    authv1alpha1.ED25519,
 				}
 				status := &authv1alpha1.DeployKeyStatus{
@@ -613,12 +620,12 @@ var _ = Describe("DeployKey Controller", func() {
 				}
 				key := createDeployKey("max-retries-test", spec, status, nil)
 
-				privKey := "-----BEGIN PRIVATE KEY-----\nKEY\n-----END PRIVATE KEY-----"
-				pubKey := "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAtest"
+				privKey := testFailPrivateKey
+				pubKey := testED25519PublicKey
 
 				gomock.InOrder(
 					mockSSH.EXPECT().GenerateED25519KeyPair().Return(privKey, pubKey, nil),
-					mockGitHub.EXPECT().CreateKey(testCtx, "test-owner", "test-repo", gomock.Any()).Return(nil, nil, errors.New("persistent error")),
+					mockGitHub.EXPECT().CreateKey(testCtx, testOwner, testRepo, gomock.Any()).Return(nil, nil, errors.New("persistent error")),
 				)
 
 				_, err := reconcileKey(key)
