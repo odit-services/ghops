@@ -1,15 +1,16 @@
-name: Release
+name: CI
 
 on:
-  release:
-    types: [published, edited]
+  push:
+    branches:
+      - main
 
 permissions:
   contents: read
   packages: write
 
 jobs:
-  build-and-push:
+  build:
     runs-on: actions-runner-kube-niggl
     steps:
       - name: Checkout
@@ -28,18 +29,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract version from tag
-        id: version
-        run: |
-          VERSION="${GITHUB_REF#refs/tags/}"
-          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
-
       - name: Build and push multi-arch image
         uses: docker/build-push-action@v7
         with:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ghcr.io/odit-services/ghops:${{ steps.version.outputs.VERSION }}
+          tags: ghcr.io/odit-services/ghops:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
