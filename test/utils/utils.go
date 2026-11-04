@@ -40,6 +40,35 @@ func warnError(err error) {
 	_, _ = fmt.Fprintf(GinkgoWriter, "warning: %v\n", err)
 }
 
+// ContainerTool returns the container CLI ("docker" or "podman") to use for
+// building and loading images.
+//
+// It honors the CONTAINER_TOOL environment variable (same name as the
+// Makefile variable). If unset, it auto-detects: docker is preferred when
+// available, otherwise it falls back to podman.
+func ContainerTool() string {
+	if v, ok := os.LookupEnv("CONTAINER_TOOL"); ok && v != "" {
+		return v
+	}
+	if _, err := exec.LookPath("docker"); err == nil {
+		return "docker"
+	}
+	if _, err := exec.LookPath("podman"); err == nil {
+		return "podman"
+	}
+	return "docker"
+}
+
+// KindEnv returns the extra environment variables needed for kind commands
+// when using the given container tool. Kind defaults to the docker provider;
+// podman requires kind's experimental podman provider.
+func KindEnv(tool string) []string {
+	if tool == "podman" {
+		return []string{"KIND_EXPERIMENTAL_PROVIDER=podman"}
+	}
+	return nil
+}
+
 // Run executes the provided command within this context
 func Run(cmd *exec.Cmd) (string, error) {
 	dir, _ := GetProjectDir()
@@ -49,7 +78,10 @@ func Run(cmd *exec.Cmd) (string, error) {
 		_, _ = fmt.Fprintf(GinkgoWriter, "chdir dir: %q\n", err)
 	}
 
-	cmd.Env = append(os.Environ(), "GO111MODULE=on")
+	if cmd.Env == nil {
+		cmd.Env = os.Environ()
+	}
+	cmd.Env = append(cmd.Env, "GO111MODULE=on")
 	command := strings.Join(cmd.Args, " ")
 	_, _ = fmt.Fprintf(GinkgoWriter, "running: %q\n", command)
 	output, err := cmd.CombinedOutput()
@@ -165,14 +197,45 @@ func IsCertManagerCRDsInstalled() bool {
 	return false
 }
 
-// LoadImageToKindClusterWithName loads a local docker image to the kind cluster
+// LoadImageToKindClusterWithName loads a local container image to the kind cluster.
+// With docker it uses `kind load docker-image`, which talks to the docker daemon.
+// Podman images are saved to an archive first and loaded via
+// `kind load image-archive`, since kind cannot pull them from podman directly.
 func LoadImageToKindClusterWithName(name string) error {
+	return LoadImageToKindClusterWithNameWithTool(name, ContainerTool())
+}
+
+// LoadImageToKindClusterWithNameWithTool loads a local container image to the
+// kind cluster using the given container tool ("docker" or "podman").
+func LoadImageToKindClusterWithNameWithTool(name, tool string) error {
 	cluster := "kind"
 	if v, ok := os.LookupEnv("KIND_CLUSTER"); ok {
 		cluster = v
 	}
+	if tool == "podman" {
+		archive, err := os.CreateTemp("", "ghops-image-*.tar")
+		if err != nil {
+			return err
+		}
+		archiveName := archive.Name()
+		_ = archive.Close()
+		defer func() { _ = os.Remove(archiveName) }()
+
+		cmd := exec.Command("podman", "save", "-o", archiveName, name)
+		cmd.Env = append(os.Environ(), KindEnv(tool)...)
+		if _, err := Run(cmd); err != nil {
+			return err
+		}
+
+		kindOptions := []string{"load", "image-archive", archiveName, "--name", cluster}
+		cmd = exec.Command("kind", kindOptions...)
+		cmd.Env = append(os.Environ(), KindEnv(tool)...)
+		_, err = Run(cmd)
+		return err
+	}
 	kindOptions := []string{"load", "docker-image", name, "--name", cluster}
 	cmd := exec.Command("kind", kindOptions...)
+	cmd.Env = append(os.Environ(), KindEnv(tool)...)
 	_, err := Run(cmd)
 	return err
 }
