@@ -38,7 +38,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
-	"github.com/google/go-github/v74/github"
+	"github.com/google/go-github/v79/github"
 	authv1alpha1 "github.com/odit-services/ghops/api/v1alpha1"
 	"github.com/odit-services/ghops/internal/services"
 )

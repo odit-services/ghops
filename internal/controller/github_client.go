@@ -3,7 +3,7 @@ package controller
 import (
 	"context"
 
-	"github.com/google/go-github/v74/github"
+	"github.com/google/go-github/v79/github"
 )
 
 // GitHubClient defines the GitHub API methods needed by the DeployKey controller.

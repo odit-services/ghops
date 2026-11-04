@@ -21,7 +21,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/google/go-github/v74/github"
+	"github.com/google/go-github/v79/github"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"go.uber.org/mock/gomock"
