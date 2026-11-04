@@ -5,6 +5,7 @@ Versions are based on [Semantic Versioning](http://semver.org/), and the changel
 
 ## Version History
 
+* [v0.6.0](#v0.6.0)
 * [v0.5.1](#v0.5.1)
 * [v0.5.0](#v0.5.0)
 * [v0.4.0](#v0.4.0)
@@ -17,6 +18,22 @@ Versions are based on [Semantic Versioning](http://semver.org/), and the changel
 * [v0.1.0](#v0.1.0)
 
 ## Changes
+
+<a name="v0.6.0"></a>
+### [v0.6.0](https://github.com/odit-services/s3ops/compare/v0.5.1...v0.6.0)
+
+> 2026-11-04
+
+#### 🏡 Chore
+
+* **deps:** upgrade Go toolchain and dependency set
+* **release:** prepare v0.6.0
+
+#### 🩹 Fixes
+
+* **ci:** trigger release image build on tags, switch runners to ubuntu-latest
+* **e2e:** run kind e2e tests with podman
+
 
 <a name="v0.5.1"></a>
 ### [v0.5.1](https://github.com/odit-services/s3ops/compare/v0.5.0...v0.5.1)
