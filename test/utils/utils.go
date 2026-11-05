@@ -34,6 +34,8 @@ const (
 
 	certmanagerVersion = "v1.16.3"
 	certmanagerURLTmpl = "https://github.com/cert-manager/cert-manager/releases/download/%s/cert-manager.yaml"
+
+	podmanTool = "podman"
 )
 
 func warnError(err error) {
@@ -53,8 +55,8 @@ func ContainerTool() string {
 	if _, err := exec.LookPath("docker"); err == nil {
 		return "docker"
 	}
-	if _, err := exec.LookPath("podman"); err == nil {
-		return "podman"
+	if _, err := exec.LookPath(podmanTool); err == nil {
+		return podmanTool
 	}
 	return "docker"
 }
@@ -63,7 +65,7 @@ func ContainerTool() string {
 // when using the given container tool. Kind defaults to the docker provider;
 // podman requires kind's experimental podman provider.
 func KindEnv(tool string) []string {
-	if tool == "podman" {
+	if tool == podmanTool {
 		return []string{"KIND_EXPERIMENTAL_PROVIDER=podman"}
 	}
 	return nil
@@ -212,7 +214,7 @@ func LoadImageToKindClusterWithNameWithTool(name, tool string) error {
 	if v, ok := os.LookupEnv("KIND_CLUSTER"); ok {
 		cluster = v
 	}
-	if tool == "podman" {
+	if tool == podmanTool {
 		archive, err := os.CreateTemp("", "ghops-image-*.tar")
 		if err != nil {
 			return err
@@ -221,7 +223,7 @@ func LoadImageToKindClusterWithNameWithTool(name, tool string) error {
 		_ = archive.Close()
 		defer func() { _ = os.Remove(archiveName) }()
 
-		cmd := exec.Command("podman", "save", "-o", archiveName, name)
+		cmd := exec.Command(podmanTool, "save", "-o", archiveName, name)
 		cmd.Env = append(os.Environ(), KindEnv(tool)...)
 		if _, err := Run(cmd); err != nil {
 			return err
