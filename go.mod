@@ -3,7 +3,7 @@ module github.com/odit-services/ghops
 go 1.27.0
 
 require (
-	github.com/google/go-github/v79 v79.0.0
+	github.com/google/go-github/v93 v93.0.0
 	github.com/google/go-github/v93 v93.0.0
 	github.com/onsi/ginkgo/v2 v2.34.0
 	github.com/onsi/gomega v1.44.0
