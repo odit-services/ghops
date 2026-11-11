@@ -38,7 +38,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v93/github"
 	authv1alpha1 "github.com/odit-services/ghops/api/v1alpha1"
 	"github.com/odit-services/ghops/internal/services"
 )
@@ -352,8 +352,8 @@ func (r *DeployKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 
 		readOnly := deploykey.Spec.Permission == authv1alpha1.ReadOnly
-		keyrequest := &github.Key{
-			Key:      &pubKey,
+		keyrequest := github.CreateDeployKeyRequest{
+			Key:      pubKey,
 			Title:    &deploykey.Spec.Title,
 			ReadOnly: &readOnly,
 		}
@@ -456,7 +456,10 @@ func (r *DeployKeyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return fmt.Errorf("GITHUB_TOKEN environment variable is not set")
 	}
 
-	r.gitClient = NewGitHubClient(github.NewClient(nil).WithAuthToken(ghToken))
+	r.gitClient, err = NewGitHubClientFromToken(ghToken)
+	if err != nil {
+		return fmt.Errorf("failed to create GitHub client: %w", err)
+	}
 	r.logger.Infow("DeployKeyReconciler initialized", "logLevel", logLevel)
 
 	r.sshservice = &services.DefaultSSHService{

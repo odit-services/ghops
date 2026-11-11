@@ -20,7 +20,7 @@ import (
 	"context"
 	"reflect"
 
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v93/github"
 	"go.uber.org/mock/gomock"
 )
 
@@ -48,9 +48,9 @@ func (m *MockGitHubClient) EXPECT() *MockGitHubClientMockRecorder {
 }
 
 // CreateKey mocks base method.
-func (m *MockGitHubClient) CreateKey(ctx context.Context, owner, repo string, key *github.Key) (*github.Key, *github.Response, error) {
+func (m *MockGitHubClient) CreateKey(ctx context.Context, owner, repo string, req github.CreateDeployKeyRequest) (*github.Key, *github.Response, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateKey", ctx, owner, repo, key)
+	ret := m.ctrl.Call(m, "CreateKey", ctx, owner, repo, req)
 	ret0, _ := ret[0].(*github.Key)
 	ret1, _ := ret[1].(*github.Response)
 	ret2, _ := ret[2].(error)
@@ -58,9 +58,9 @@ func (m *MockGitHubClient) CreateKey(ctx context.Context, owner, repo string, ke
 }
 
 // CreateKey indicates an expected call of CreateKey.
-func (mr *MockGitHubClientMockRecorder) CreateKey(ctx, owner, repo, key interface{}) *gomock.Call {
+func (mr *MockGitHubClientMockRecorder) CreateKey(ctx, owner, repo, req interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateKey", reflect.TypeOf((*MockGitHubClient)(nil).CreateKey), ctx, owner, repo, key)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateKey", reflect.TypeOf((*MockGitHubClient)(nil).CreateKey), ctx, owner, repo, req)
 }
 
 // DeleteKey mocks base method.
