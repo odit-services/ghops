@@ -21,7 +21,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v93/github"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"go.uber.org/mock/gomock"
@@ -132,7 +132,7 @@ var _ = Describe("DeployKey Controller", func() {
 
 	// Helper to make a GitHub Key response
 	makeGitHubKey := func(id int64) *github.Key {
-		return &github.Key{ID: github.Ptr(id)}
+		return &github.Key{ID: &id}
 	}
 
 	// ==========================================================================
