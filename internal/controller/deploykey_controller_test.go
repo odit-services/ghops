@@ -132,7 +132,7 @@ var _ = Describe("DeployKey Controller", func() {
 
 	// Helper to make a GitHub Key response
 	makeGitHubKey := func(id int64) *github.Key {
-		return &github.Key{ID: github.Ptr(id)}
+		return &github.Key{ID: &id}
 	}
 
 	// ==========================================================================
